@@ -46,10 +46,9 @@ class RedisStore implements Store {
     return Number(ok) === 1
   }
   async presence(code: string) {
-    const h = await this.r.hgetall<Record<string, string>>(presKey(code))
-    const out: Record<string, number> = {}
-    for (const [k, v] of Object.entries(h ?? {})) out[k] = Number(v)
-    return out
+    // With automaticDeserialization off, Upstash returns HGETALL as a flat [field, value, field, value, …] array.
+    const raw = (await this.r.hgetall(presKey(code))) as unknown
+    return parsePresence(raw)
   }
   async touch(code: string, playerId: string, at: number) {
     await this.r.hset(presKey(code), { [playerId]: String(at) })
@@ -57,6 +56,18 @@ class RedisStore implements Store {
   async remove(code: string) {
     await this.r.del(key(code), verKey(code), presKey(code))
   }
+}
+
+/** Accept both shapes Redis clients use for HGETALL: a flat field/value array or an object. */
+export function parsePresence(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (Array.isArray(raw)) {
+    for (let i = 0; i + 1 < raw.length; i += 2) out[String(raw[i])] = Number(raw[i + 1])
+  } else if (raw && typeof raw === 'object') {
+    for (const [k, v] of Object.entries(raw)) out[k] = Number(v)
+  }
+  for (const k of Object.keys(out)) if (!Number.isFinite(out[k])) delete out[k]
+  return out
 }
 
 /** In-process store for local development and tests. */

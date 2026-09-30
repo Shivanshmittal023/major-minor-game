@@ -4,7 +4,7 @@ import type { ClientMsg, Snapshot } from '../../shared/protocol.js'
 import { teamOfSeat } from '../../shared/rules.js'
 import { handOf } from '../game.js'
 import { handleGet, handlePost, type ApiReply } from '../handler.js'
-import { MemoryStore, setStore } from '../store.js'
+import { MemoryStore, parsePresence, setStore } from '../store.js'
 
 /**
  * Drives the real HTTP handlers (the same code Vercel runs) with an in-memory
@@ -250,5 +250,14 @@ describe('team selection is open to everyone', () => {
     await host.post({ type: 'start' })
     expect(host.last!.phase).toBe('playing')
     expect((await others[0].post({ type: 'seat', playerId: others[0].id, seat: 0 })).error).toMatch(/started/)
+  })
+})
+
+describe('Redis presence parsing', () => {
+  it('reads Upstash HGETALL in raw array form and object form', () => {
+    expect(parsePresence(['a', '100', 'b', '200'])).toEqual({ a: 100, b: 200 })
+    expect(parsePresence({ a: '100', b: 200 })).toEqual({ a: 100, b: 200 })
+    expect(parsePresence(null)).toEqual({})
+    expect(parsePresence(['a', 'x'])).toEqual({})
   })
 })

@@ -127,6 +127,9 @@ class RoomClient {
       } else this.toast(r.error, 'error')
       return false
     }
+    // A poll sent before one of our actions can land after it; never let an older room version overwrite a newer one.
+    const cur = this.state.snapshot
+    if (r.snapshot && cur && cur.code === r.snapshot.code && r.snapshot.version < cur.version) return true
     if (r.etag) this.etag = r.etag
     if (r.snapshot) this.set({ snapshot: r.snapshot, fatal: null })
     return true
