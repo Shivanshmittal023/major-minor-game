@@ -12,7 +12,7 @@ import { newPlayer, type Presence, type RoomData } from './room.js'
  */
 
 const BOT_NAMES = ['Aria', 'Bodhi', 'Cleo', 'Dax', 'Esha', 'Finn', 'Gia', 'Hugo', 'Ivy', 'Jude']
-let botDelayMs = 2500 // long enough for the ask banner, reveal and card flight
+let botDelayMs = 15_000 // one bot move every 15 seconds, so people can follow and remember the asks
 
 export function setBotDelay(ms: number) {
   botDelayMs = ms

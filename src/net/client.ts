@@ -284,9 +284,6 @@ class RoomClient {
     this.set({ pendingAsk: null })
     return ok
   }
-  skipTurn() {
-    void this.act({ type: 'skipTurn' })
-  }
   backToLobby() {
     void this.act({ type: 'backToLobby' })
   }

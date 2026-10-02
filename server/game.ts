@@ -113,8 +113,8 @@ function setTurn(g: Game, seat: number) {
   g.turn = s
 }
 
-/** Skip the turn of someone who has left or disconnected — by any player, or automatically after a minute ('away'). */
-export function skipTurn(g: Game, reason: 'player' | 'away' = 'player'): void {
+/** Skip the turn of someone who has disconnected. Only ever done automatically, after a minute (see room.autoSkip) — no player can skip another's turn. */
+export function skipTurn(g: Game, reason: 'away' = 'away'): void {
   if (g.winner !== null) throw new RuleError('The game is over.')
   const from = g.turn
   let to = (from + 1) % g.size

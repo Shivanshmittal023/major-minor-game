@@ -437,3 +437,14 @@ describe('auto-skip', () => {
     expect(last.kind === 'skip' && last.reason === 'away' && last.from === turn).toBe(true)
   })
 })
+
+describe('nobody can skip another player', () => {
+  it('there is no manual skip — only the automatic one-minute skip for disconnected players', async () => {
+    const { all } = await table(6)
+    await all[0].post({ type: 'start' })
+    for (const d of all) {
+      const r = await d.post({ type: 'skipTurn' } as unknown as ClientMsg)
+      expect(r.error).toMatch(/Unknown action/)
+    }
+  })
+})

@@ -232,14 +232,6 @@ export function reduce(r: RoomData, actor: PlayerData, msg: ClientMsg, presence:
       if (g.winner !== null) r.phase = 'finished'
       break
     }
-    case 'skipTurn': {
-      const g = r.game
-      if (!g || r.phase !== 'playing') throw new ActionError('The game is not running.')
-      const current = r.players.find((p) => p.id === r.seating[g.turn])
-      if (current && isOnline(presence, current.id, now)) throw new ActionError(`${current.name} is online — it's their move.`)
-      skipTurn(g)
-      break
-    }
     case 'backToLobby': {
       if (r.phase === 'lobby') return false
       r.phase = 'lobby'
