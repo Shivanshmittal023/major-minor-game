@@ -34,7 +34,6 @@ export interface PlayerView {
   id: string
   name: string
   connected: boolean
-  isHost: boolean
   seat: number | null
   /** A practice bot. */
   bot: boolean
@@ -45,7 +44,7 @@ export type LogEntry =
   | { id: number; t: number; kind: 'ask'; asker: number; target: number; card: CardId; success: boolean; next: number }
   /** claimed/actual: seat per card of the set (as named, and where each really was). `team` won the set. */
   | { id: number; t: number; kind: 'declare'; declarer: number; set: SetId; claimed: number[]; actual: number[]; correct: boolean; team: TeamId }
-  | { id: number; t: number; kind: 'skip'; from: number; to: number; reason: 'no-cards' | 'host' }
+  | { id: number; t: number; kind: 'skip'; from: number; to: number; reason: 'no-cards' | 'player' }
   | { id: number; t: number; kind: 'end'; winner: TeamId | 'draw'; score: [number, number] }
 
 export interface SeatView {
@@ -80,9 +79,11 @@ export interface Snapshot {
   size: TableSize
   /** [Team 1, Team 2] display names. */
   teamNames: [string, string]
+  /** Lobby only: when the full table will deal by itself (`at`, server ms; `now` lets clients correct clock skew). */
+  autoStart: { at: number | null; now: number } | null
   phase: Phase
   version: number
-  you: { id: string; name: string; isHost: boolean; seat: number | null }
+  you: { id: string; name: string; seat: number | null }
   players: PlayerView[]
   seating: (string | null)[] // playerId per seat
   game: PublicGame | null

@@ -124,13 +124,9 @@ export function EndOverlay({ v }: { v: View }) {
             ))}
           </div>
           <div className="mt-8 flex flex-wrap justify-center gap-2">
-            {v.snap.you.isHost ? (
-              <Button variant="primary" size="lg" onClick={() => client.backToLobby()}>
-                Back to lobby for a rematch
-              </Button>
-            ) : (
-              <span className="self-center text-xs text-fg-3">The host can start a rematch.</span>
-            )}
+            <Button variant="primary" size="lg" onClick={() => client.backToLobby()}>
+              Back to lobby for a rematch
+            </Button>
             <Button size="lg" onClick={() => setHidden(true)}>
               View table
             </Button>

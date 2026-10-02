@@ -158,7 +158,9 @@ class RoomClient {
   private schedule() {
     if (this.timer !== null || !this.code) return
     const hidden = typeof document !== 'undefined' && document.hidden
-    const delay = hidden ? POLL_HIDDEN_MS : this.state.snapshot?.phase === 'playing' ? POLL_VISIBLE_MS : POLL_LOBBY_MS
+    const snap = this.state.snapshot
+    const busy = snap?.phase === 'playing' || !!snap?.autoStart?.at // poll faster during play and auto-start countdowns
+    const delay = hidden ? POLL_HIDDEN_MS : busy ? POLL_VISIBLE_MS : POLL_LOBBY_MS
     this.timer = window.setTimeout(() => this.poll(), this.failures ? Math.min(5000, 1000 * this.failures) : delay)
   }
 

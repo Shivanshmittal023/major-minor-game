@@ -1,5 +1,5 @@
 import type { ClientMsg } from '../shared/protocol.js'
-import { ActionError, addPlayer, cleanName, etagFor, findByToken, maintain, newCode, newPlayer, newRoom, normCode, reduce, snapshotFor, type RoomData } from './room.js'
+import { ActionError, addPlayer, autoStart, cleanName, etagFor, findByToken, maintain, newCode, newPlayer, newRoom, normCode, reduce, snapshotFor, type RoomData } from './room.js'
 import { getStore } from './store.js'
 import { botDue, botStep, withBots } from './bots.js'
 import { isTableSize } from '../shared/rules.js'
@@ -70,11 +70,13 @@ export async function handleGet(req: Request): Promise<Response> {
       await store.touch(code, me.id, now)
       presence = { ...presence, [me.id]: now }
     }
-    // Lazy housekeeping (rare): host handover, dropping long-gone lobby guests.
+    // Lazy housekeeping (rare): dropping long-gone lobby guests.
     const probe = structuredClone(room)
     if (maintain(probe, presence, now)) ({ room, presence, now } = await mutate(code, (r, p, t) => maintain(r, { ...p, [me.id]: t }, t)))
     // Practice bots move lazily, one move per poll once the last move has played out on screen.
     if (botDue(room, now)) ({ room, presence, now } = await mutate(code, (r, _p, t) => botStep(r, t)))
+    // Full table + everyone online → countdown → deal (also evaluated lazily on polls).
+    if (autoStart(structuredClone(room), presence, now)) ({ room, presence, now } = await mutate(code, (r, p, t) => autoStart(r, withBots(r, { ...p, [me.id]: t }, t), t)))
     if (!room.players.some((p) => p.id === me.id)) return json({ error: 'You are no longer at this table.', fatal: true })
     const r = reply(room, me.id, presence, now)
     if (r.etag === url.searchParams.get('etag')) return json({ unchanged: true, etag: r.etag })
@@ -103,14 +105,14 @@ export async function handlePost(req: Request): Promise<Response> {
       if (!name) return json({ error: 'Please enter your name.' })
       if (!isTableSize(msg.size)) return json({ error: 'Choose a 6- or 8-player table.' })
       const now = Date.now()
-      const host = newPlayer(name, now)
+      const creator = newPlayer(name, now)
       for (let i = 0; i < 10; i++) {
-        const room = newRoom(newCode(), host, now, msg.size)
+        const room = newRoom(newCode(), creator, now, msg.size)
         room.version = 1
         if (await store.save(room, 0)) {
-          await store.touch(room.code, host.id, now)
-          const presence = { [host.id]: now }
-          return json({ welcome: { code: room.code, token: host.token, playerId: host.id }, ...reply(room, host.id, presence, now) })
+          await store.touch(room.code, creator.id, now)
+          const presence = { [creator.id]: now }
+          return json({ welcome: { code: room.code, token: creator.token, playerId: creator.id }, ...reply(room, creator.id, presence, now) })
         }
       }
       return json({ error: 'Could not create a table — please try again.' })

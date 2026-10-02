@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { PlayerView, Snapshot } from '../../shared/protocol'
 import { DEFAULT_TEAM_NAMES, MODES, RULES_SUMMARY, TEAM_NAME_MAX, teamLabel, teamOfSeat, type TeamId } from '../../shared/rules'
 import { navigate } from '../App'
@@ -6,14 +6,13 @@ import { client } from '../net/client'
 import { Avatar, Badge, BrandMark, Button, Check, Cross, Panel, TEAM_STYLE, TeamDot, useMediaQuery, teamName } from '../ui/kit'
 
 export function Lobby({ snap }: { snap: Snapshot }) {
-  const isHost = snap.you.isHost
   const [picked, setPicked] = useState<string | null>(null) // player selected for seating — anyone can arrange the table
   const myId = snap.you.id
   const byId = new Map(snap.players.map((p) => [p.id, p]))
   const seated = snap.seating.filter(Boolean).length
   const offlineSeated = snap.seating.filter((id) => id && !byId.get(id)?.connected).map((id) => byId.get(id!)!.name)
-  const host = snap.players.find((p) => p.isHost)
   const n = snap.size
+  const countdown = useCountdown(snap.autoStart)
 
   const clickSeat = (seat: number) => {
     const occupant = snap.seating[seat]
@@ -65,7 +64,7 @@ export function Lobby({ snap }: { snap: Snapshot }) {
           >
             <ul className="divide-y divide-white/[0.04]">
               {snap.players.map((p) => (
-                <PlayerRow key={p.id} p={p} you={p.id === snap.you.id} canKick={isHost} picked={picked === p.id} onPick={() => setPicked(picked === p.id ? null : p.id)} />
+                <PlayerRow key={p.id} p={p} you={p.id === snap.you.id} canKick picked={picked === p.id} onPick={() => setPicked(picked === p.id ? null : p.id)} />
               ))}
             </ul>
             <p className="border-t border-white/[0.05] px-4 py-3 text-xs text-fg-3 sm:px-5">
@@ -94,11 +93,9 @@ export function Lobby({ snap }: { snap: Snapshot }) {
                     <Button size="sm" onClick={() => client.swapTeams()} disabled={seated === 0} title="Everyone moves one seat, so every player changes team">
                       Swap teams
                     </Button>
-                    {isHost && (
-                      <Button size="sm" onClick={() => client.fillBots()} disabled={seated === n} title="Fill every empty seat with a practice bot — handy for testing alone">
-                        Fill with bots
-                      </Button>
-                    )}
+                    <Button size="sm" onClick={() => client.fillBots()} disabled={seated === n} title="Fill every empty seat with a practice bot — handy for testing alone">
+                      Fill with bots
+                    </Button>
                   </div>
                 )
               }
@@ -115,24 +112,27 @@ export function Lobby({ snap }: { snap: Snapshot }) {
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.06] bg-ink-950/90 backdrop-blur-md">
         <div className="pb-safe mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-4 pt-3 sm:px-6">
           <div className="min-w-0 text-[13px]">
-            {isHost ? (
-              blocker ? (
-                <span className="text-fg-3">{blocker}</span>
-              ) : (
-                <span className="flex items-center gap-2 text-sage"><Check /> Table is ready — all {n} seated and online</span>
-              )
+            {countdown !== null ? (
+              <span className="flex items-center gap-3 text-champagne">
+                <span className="text-display flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-champagne/50 text-xl leading-none">{countdown}</span>
+                <span>
+                  <span className="block font-medium">Everyone's here — dealing in {countdown}…</span>
+                  <span className="block text-[11px] text-fg-3">Anyone can start now. Unseat someone to stop the countdown.</span>
+                </span>
+              </span>
+            ) : blocker ? (
+              <span className="text-fg-3">{blocker} · the game deals itself once everyone's in</span>
             ) : (
-              <span className="flex items-center gap-2 text-fg-2">
-                {host && <Avatar name={host.name} team={host.seat === null ? null : teamOfSeat(host.seat)} size={22} />}
-                Waiting for {host?.name ?? 'the host'} to start the game…
+              <span className="flex items-center gap-2 text-sage">
+                <Check /> Table is ready — all {n} seated and online
               </span>
             )}
           </div>
-          {isHost && (
+          <div className="flex shrink-0 items-center gap-2">
             <Button variant="primary" size="xl" onClick={() => client.start()} disabled={!!blocker}>
-              Deal & start <span aria-hidden>→</span>
+              Start now <span aria-hidden>→</span>
             </Button>
-          )}
+          </div>
         </div>
       </div>
     </div>
@@ -204,7 +204,6 @@ function PlayerRow({ p, you, canKick, picked, onPick }: { p: PlayerView; you: bo
         <div className="flex items-center gap-2">
           <span className={`truncate text-[13px] font-medium ${picked ? 'text-champagne' : 'text-fg'}`}>{p.name}</span>
           {you && <span className="text-[11px] text-fg-4">you</span>}
-          {p.isHost && <Badge tone="accent">Host</Badge>}
           {p.bot && <Badge>Bot</Badge>}
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-fg-3">
@@ -385,4 +384,18 @@ function TeamNameInput({ team, value }: { team: TeamId; value: string }) {
       <span className="text-[10px] text-fg-4">rename</span>
     </label>
   )
+}
+
+/** Seconds left on the auto-start countdown (server time, corrected for this device's clock), or null. */
+function useCountdown(a: { at: number | null; now: number } | null): number | null {
+  const [, tick] = useState(0)
+  const at = a?.at ?? null
+  const skew = a ? a.now - Date.now() : 0
+  useEffect(() => {
+    if (at === null) return
+    const id = setInterval(() => tick((x) => x + 1), 250)
+    return () => clearInterval(id)
+  }, [at])
+  if (at === null) return null
+  return Math.max(0, Math.ceil((at - (Date.now() + skew)) / 1000))
 }

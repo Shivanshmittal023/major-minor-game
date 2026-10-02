@@ -22,10 +22,11 @@ On the same Wi-Fi, phones can open the "Network" URL that `npm run dev` prints.
 Seats alternate teams in both modes. Card ids 0–47 are identical in both; the extra set is ids 48–53.
 
 ## Lobby
+- **No host: everyone is equal.** Whoever created the table just takes Seat 1. Any player can seat people, rename teams, add bots, remove a lobby guest, skip a disconnected player's turn, start, or call a rematch.
+- **Players sit as they join.** The moment every seat is filled and everyone is online, a **10-second countdown** starts on every screen, then the cards are dealt. Anyone can tap **Start now** to skip it. Unseating someone stops the countdown, and it restarts when the table fills again.
 - **Everyone** in the lobby can arrange the teams. Tap an empty seat to sit there, tap a player then a seat to move them, or use Auto-fill, Shuffle and Swap teams. Seats alternate teams.
 - Anyone can **rename the two teams** (default Tide / Ember). The colours stay the same.
-- The **host** starts the game (once every seat is filled and everyone is online) and can remove players from the lobby.
-- **Practice bots:** the host can tap **Fill with bots** to seat bots in every empty seat (seating themselves first), so one person can test a whole table. Bots move on the server, one move every ~2.5s. They ask fair random questions and only declare sets their team truly holds and they have a card of.
+- **Practice bots:** anyone can tap **Fill with bots** to seat bots in every empty seat (seating themselves first), so one person can test a whole table. Bots move on the server, one move every ~2.5s. They ask fair random questions and only declare sets their team truly holds and they have a card of.
 
 ## House rules (fixed, in `shared/rules.ts`)
 - After a **successful** ask, the **asker goes again**.
@@ -56,7 +57,7 @@ src/               React client in the Ink & Ivory design system
 - **Server-authoritative.** The deck and all hands exist only on the server. Each device receives the public table plus its own hand, and nothing else.
 - **Realtime on Vercel.** Vercel functions can't hold WebSockets open, so each device polls: 1s during a game, 2s in the lobby, 4s when the tab is hidden. The server answers `unchanged` unless something moved. Your own actions update instantly.
 - **Concurrency.** Every write is an atomic compare-and-set (a Redis Lua script) on the room version, so simultaneous actions never overwrite each other.
-- **Presence.** Polling doubles as a heartbeat. A device silent for 15s shows as offline. The host role passes on after 60s away, and the host can skip an absent player's turn.
+- **Presence.** Polling doubles as a heartbeat. A device silent for 15s shows as offline, and any player can skip an absent player's turn.
 - **Refresh and reconnect.** A secret session token on each device resumes the same seat. Retried asks are de-duplicated by `actionId`.
 - **Cleanup.** Rooms expire from Redis 12 hours after their last write.
 - **Imports.** Server-side relative imports use `.js` extensions, which Vercel's native ES-module runtime requires.

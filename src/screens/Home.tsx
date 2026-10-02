@@ -17,7 +17,7 @@ export function Home() {
   const [size, setSize] = useState<TableSize>(8)
 
   const create = () => {
-    if (!name.trim()) return client.toast('Enter your name to host a table.', 'error')
+    if (!name.trim()) return client.toast('Enter your name to start a table.', 'error')
     setCreating(true)
     client.create(name.trim(), size)
     setTimeout(() => setCreating(false), 4000)
@@ -45,7 +45,7 @@ export function Home() {
               Deal in your <em className="text-champagne">friends.</em>
             </h1>
             <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-fg-2">
-              Host a table, share the link, and play Major–Minor together — three against three or four against four, each on their own phone or laptop. The server deals, keeps every hand private and referees every ask.
+              Start a table, share the link, and play Major–Minor together — three against three or four against four, each on their own phone or laptop. The server deals, keeps every hand private and referees every ask.
             </p>
           </div>
           <div className="relative hidden h-[240px] items-center justify-center lg:flex">
@@ -60,7 +60,7 @@ export function Home() {
 
         <div className="mt-12 grid gap-5 md:grid-cols-2">
           <section className="surface rounded-xl p-5 sm:p-6">
-            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Host</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Create</div>
             <h2 className="text-display mt-1 text-[28px] leading-tight text-fg">Start a new table</h2>
             <p className="mt-1 text-[13px] text-fg-3">You'll get a code and a link to send to your friends.</p>
             <div className="mt-5">
@@ -91,7 +91,7 @@ export function Home() {
           <section className="surface rounded-xl p-5 sm:p-6">
             <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Join</div>
             <h2 className="text-display mt-1 text-[28px] leading-tight text-fg">Have a code?</h2>
-            <p className="mt-1 text-[13px] text-fg-3">Or just open the link your host sent you.</p>
+            <p className="mt-1 text-[13px] text-fg-3">Or just open the link a friend sent you.</p>
             <label className="mt-5 block">
               <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Game code</span>
               <input

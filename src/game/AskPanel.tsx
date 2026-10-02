@@ -33,7 +33,7 @@ export function AskPanel({ v, onPick, compact = false }: { v: View; onPick: (sea
             {cur.connected ? 'Their move. Keep track of who asked for what — there is no history to look back on.' : `${cur.name} has disconnected. Their seat is held for them.`}
           </div>
         </div>
-        {!cur.connected && v.snap.you.isHost && (
+        {!cur.connected && (
           <Button size="sm" className="mt-3" onClick={() => client.skipTurn()}>
             Skip their turn
           </Button>
@@ -96,7 +96,7 @@ function AskStrip({ v, onPick }: { v: View; onPick: (seat: number) => void }) {
           <div className="truncate text-fg">{cur.connected ? `${cur.name} is thinking…` : `${cur.name} disconnected`}</div>
           <div className="truncate text-fg-4">Remember who asked for what — there's no history.</div>
         </div>
-        {!cur.connected && v.snap.you.isHost && (
+        {!cur.connected && (
           <Button size="sm" onClick={() => client.skipTurn()}>
             Skip
           </Button>

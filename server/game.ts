@@ -113,13 +113,13 @@ function setTurn(g: Game, seat: number) {
   g.turn = s
 }
 
-/** Host override for a player who has left or disconnected. */
+/** Any player can skip the turn of someone who has left or disconnected. */
 export function skipTurn(g: Game): void {
   if (g.winner !== null) throw new RuleError('The game is over.')
   const from = g.turn
   let to = (from + 1) % g.size
   for (let i = 0; i < g.size && cardCount(g, to) === 0; i++) to = (to + 1) % g.size
-  push(g, { kind: 'skip', from, to, reason: 'host' })
+  push(g, { kind: 'skip', from, to, reason: 'player' })
   g.turn = to
 }
 

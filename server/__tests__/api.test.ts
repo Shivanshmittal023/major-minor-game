@@ -69,7 +69,7 @@ describe('lobby over the API', () => {
     expect(host.last!.players.every((p) => p.connected)).toBe(true)
   })
 
-  it('rejects duplicate names, unknown codes and non-host controls', async () => {
+  it('rejects duplicate names and unknown codes; anyone may start a full table', async () => {
     const { host, others } = await table()
     const dup = new Device()
     dup.code = host.code
@@ -77,13 +77,18 @@ describe('lobby over the API', () => {
     const lost = new Device()
     lost.code = 'ZZZZZZ'
     expect((await lost.post({ type: 'join', code: 'ZZZZZZ', name: 'X' })).fatal).toBe(true)
-    expect((await others[0].post({ type: 'start' })).error).toMatch(/Only the host/)
+    // No host: any player can start once every seat is filled.
+    expect((await others[3].post({ type: 'start' })).error).toBeUndefined()
+    expect(others[3].last!.phase).toBe('playing')
   })
-
-  it('needs 8 seated players; polling returns unchanged when nothing moved', async () => {
-    const { host } = await table()
+  it('players are seated as they join; 8 seated needed; polling returns unchanged when nothing moved', async () => {
+    const { host, others } = await table()
+    await host.poll()
+    expect(host.last!.seating.every(Boolean)).toBe(true) // everyone took a seat on arrival
+    await host.post({ type: 'seat', playerId: others[0].id, seat: null })
     expect((await host.post({ type: 'start' })).error).toMatch(/Seat all 8/)
     await host.post({ type: 'autoSeat' })
+    await host.poll()
     expect((await host.poll()).unchanged).toBe(true)
     await host.post({ type: 'start' })
     expect(host.last!.phase).toBe('playing')
@@ -178,22 +183,20 @@ describe('presence, refresh and host handover', () => {
     expect(fresh.last!.hand).toEqual(handOf(room.game!, fresh.last!.you.seat!))
   })
 
-  it('marks silent devices offline and passes host after a minute away', async () => {
+  it('marks silent devices offline', async () => {
     const { host, others } = await table()
-    // Pretend the host's last poll was 2 minutes ago.
     await store.touch(host.code, host.id, Date.now() - 120_000)
     await others[0].poll()
     expect(others[0].last!.players.find((p) => p.id === host.id)!.connected).toBe(false)
-    expect(others[0].last!.you.isHost || others[0].last!.players.find((p) => p.isHost)!.id !== host.id).toBe(true)
   })
-
-  it('leaving the lobby removes you and hands host on', async () => {
+  it('leaving the lobby removes you; the table carries on for everyone else', async () => {
     const { host, others } = await table()
     await host.post({ type: 'leave' })
     await others[0].poll()
     expect(others[0].last!.players.some((p) => p.id === host.id)).toBe(false)
-    expect(others[0].last!.players.find((p) => p.isHost)).toBeTruthy()
+    expect(others[0].last!.seating.includes(null)).toBe(true)
     expect((await host.poll()).fatal).toBe(true)
+    expect(JSON.stringify(others[0].last)).not.toMatch(/isHost|hostId/)
   })
 })
 
@@ -242,14 +245,15 @@ describe('team selection is open to everyone', () => {
     before.forEach((id, i) => expect(amit.last!.seating[(i + 7) % 8]).toBe(id))
   })
 
-  it('starting the game and removing players stay with the host', async () => {
+  it('everyone is equal: any player can remove a lobby guest, add bots and start', async () => {
     const { host, others } = await table()
-    await others[0].post({ type: 'autoSeat' })
-    expect((await others[0].post({ type: 'start' })).error).toMatch(/Only the host/)
-    expect((await others[0].post({ type: 'kick', playerId: others[1].id })).error).toMatch(/Only the host/)
-    await host.post({ type: 'start' })
-    expect(host.last!.phase).toBe('playing')
+    expect((await others[0].post({ type: 'kick', playerId: others[1].id })).error).toBeUndefined()
+    expect(others[0].last!.players.some((p) => p.id === others[1].id)).toBe(false)
+    expect((await others[2].post({ type: 'fillBots' })).error).toBeUndefined()
+    expect((await others[4].post({ type: 'start' })).error).toBeUndefined()
+    expect(others[4].last!.phase).toBe('playing')
     expect((await others[0].post({ type: 'seat', playerId: others[0].id, seat: 0 })).error).toMatch(/started/)
+    void host
   })
 })
 
@@ -330,18 +334,15 @@ describe('practice bots', () => {
     }
   }, 60_000)
 
-  it('only the host can add bots, and host is never handed to a bot', async () => {
-    const host = new Device()
-    await host.post({ type: 'create', name: 'Host', size: 6 })
+  it('anyone can add bots, and the creator gets no special role', async () => {
+    const creator = new Device()
+    await creator.post({ type: 'create', name: 'Creator', size: 6 })
     const guest = new Device()
-    guest.code = host.code
-    await guest.post({ type: 'join', code: host.code, name: 'Guest' })
-    expect((await guest.post({ type: 'fillBots' })).error).toMatch(/Only the host/)
-    await host.post({ type: 'fillBots' })
-    await guest.post({ type: 'leave' })
-    await host.post({ type: 'leave' })
-    const room = (await store.load(host.code))!
-    expect(room.players.find((p) => p.id === room.hostId)?.bot).toBeFalsy()
+    guest.code = creator.code
+    await guest.post({ type: 'join', code: creator.code, name: 'Guest' })
+    expect((await guest.post({ type: 'fillBots' })).error).toBeUndefined()
+    expect(guest.last!.seating.every(Boolean)).toBe(true)
+    expect(guest.last!.players.find((p) => p.name === 'Creator')).not.toHaveProperty('isHost')
   })
 })
 
@@ -358,5 +359,56 @@ describe('team names', () => {
     await host.post({ type: 'autoSeat' })
     await host.post({ type: 'start' })
     expect((await host.post({ type: 'teamName', team: 0, name: 'Late' })).error).toMatch(/started/)
+  })
+})
+
+describe('auto-start', () => {
+  it('a full, online table counts down and deals by itself', async () => {
+    const { host, all } = await table(6)
+    await host.poll()
+    const a = host.last!.autoStart!
+    expect(a.at).not.toBeNull()
+    expect(a.at! - a.now).toBeGreaterThan(3000)
+    // Let the countdown run out (rewind the stored deadline instead of sleeping).
+    const r = (await store.load(host.code))!
+    r.autoStartAt = Date.now() - 1
+    r.version++
+    await store.save(r, r.version - 1)
+    await all[2].poll()
+    expect(all[2].last!.phase).toBe('playing')
+    for (const d of all) {
+      await d.poll()
+      expect(d.last!.hand).toHaveLength(9)
+    }
+  })
+
+  it('the countdown is 10 seconds, stops when a seat empties, re-arms when it refills, and anyone can start now', async () => {
+    const { host, others } = await table(6)
+    await host.poll()
+    const a = host.last!.autoStart!
+    expect(a.at! - a.now).toBeGreaterThan(9000)
+    expect(a.at! - a.now).toBeLessThanOrEqual(10_000)
+    await host.post({ type: 'seat', playerId: others[0].id, seat: null })
+    await host.poll()
+    expect(host.last!.autoStart!.at).toBeNull()
+    await others[1].post({ type: 'autoSeat' })
+    await host.poll()
+    expect(host.last!.autoStart!.at).not.toBeNull()
+    await others[3].post({ type: 'start' })
+    expect(others[3].last!.phase).toBe('playing')
+  })
+  it('does not count down while a seated player is offline', async () => {
+    const { host, others } = await table(6)
+    await store.touch(host.code, others[2].id, Date.now() - 60_000)
+    await host.poll()
+    expect(host.last!.autoStart!.at).toBeNull()
+  })
+
+  it('Fill with bots starts the countdown for a solo player', async () => {
+    const me = new Device()
+    await me.post({ type: 'create', name: 'Solo', size: 8 })
+    await me.post({ type: 'fillBots' })
+    await me.poll()
+    expect(me.last!.autoStart!.at).not.toBeNull()
   })
 })

@@ -25,11 +25,12 @@ export interface RoomData {
   size: TableSize
   /** Chosen in the lobby; colours stay Tide-blue / Ember-copper. */
   teamNames?: [string, string]
-  hostId: string
   players: PlayerData[]
   seating: (string | null)[]
   phase: Phase
   game: Game | null
+  /** Auto-start: when the table is full and everyone's online, deal at this time (ms). */
+  autoStartAt?: number | null
   version: number
   createdAt: number
   lastActivity: number
@@ -41,7 +42,6 @@ export type Presence = Record<string, number>
 export const ONLINE_MS = 15_000
 /** Events sent to clients for animation. Older history stays server-side (it's a memory game). */
 export const RECENT_EVENTS = 6
-const HOST_AWAY_MS = 60_000
 const LOBBY_DROP_MS = 10 * 60_000
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I
@@ -64,8 +64,9 @@ export function newPlayer(name: string, now: number): PlayerData {
   return { id: randomBytes(8).toString('hex'), token: randomBytes(18).toString('base64url'), name, joinedAt: now, seenActions: [] }
 }
 
-export function newRoom(code: string, host: PlayerData, now: number, size: TableSize = DEFAULT_SIZE): RoomData {
-  return { code, size, hostId: host.id, players: [host], seating: new Array(size).fill(null), phase: 'lobby', game: null, version: 0, createdAt: now, lastActivity: now }
+export function newRoom(code: string, creator: PlayerData, now: number, size: TableSize = DEFAULT_SIZE): RoomData {
+  // The creator simply takes the first seat — no special role.
+  return { code, size, players: [creator], seating: [creator.id, ...new Array(size - 1).fill(null)], phase: 'lobby', game: null, version: 0, createdAt: now, lastActivity: now }
 }
 
 export function cleanName(raw: unknown): string {
@@ -98,6 +99,9 @@ export function addPlayer(r: RoomData, name: string, now: number): PlayerData {
   if (r.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) throw new ActionError('Someone in this lobby already uses that name.')
   const p = newPlayer(name, now)
   r.players.push(p)
+  // Take the first empty seat on arrival, so "everyone has joined" means the table is full.
+  const free = r.seating.indexOf(null)
+  if (free >= 0) r.seating[free] = p.id
   return p
 }
 
@@ -106,10 +110,6 @@ function removePlayer(r: RoomData, id: string) {
   r.seating = r.seating.map((s) => (s === id ? null : s))
 }
 
-function passHost(r: RoomData, presence: Presence, now: number) {
-  const next = r.players.find((p) => p.id !== r.hostId && !p.bot && isOnline(presence, p.id, now))
-  if (next) r.hostId = next.id
-}
 
 /**
  * Apply one player action to a room (mutates `r`). Throws ActionError with a
@@ -117,10 +117,6 @@ function passHost(r: RoomData, presence: Presence, now: number) {
  * action was a harmless no-op (e.g. a duplicate retry), so nothing is saved.
  */
 export function reduce(r: RoomData, actor: PlayerData, msg: ClientMsg, presence: Presence, now: number): boolean {
-  const isHost = r.hostId === actor.id
-  const hostOnly = () => {
-    if (!isHost) throw new ActionError('Only the host can do that.')
-  }
   const lobbyOnly = (what: string) => {
     if (r.phase !== 'lobby') throw new ActionError(`${what} once the game has started.`)
   }
@@ -128,10 +124,9 @@ export function reduce(r: RoomData, actor: PlayerData, msg: ClientMsg, presence:
   switch (msg.type) {
     case 'leave': {
       if (r.phase === 'lobby') removePlayer(r, actor.id)
-      if (r.hostId === actor.id) passHost(r, { ...presence, [actor.id]: 0 }, now)
       break
     }
-    // Seating and teams are open to everyone in the lobby; starting and removing players stay with the host.
+    // Everyone at the table is equal: seating, teams, bots, removing players and starting are open to all.
     case 'seat': {
       lobbyOnly("Seats can't change")
       if (!r.players.some((p) => p.id === msg.playerId)) throw new ActionError('Unknown player.')
@@ -169,7 +164,6 @@ export function reduce(r: RoomData, actor: PlayerData, msg: ClientMsg, presence:
       break
     }
     case 'fillBots': {
-      hostOnly()
       lobbyOnly('Bots can only join')
       // Seat whoever asked first (so a solo tester isn't left watching), then fill the rest with bots.
       if (seatOf(r, actor.id) === null) {
@@ -191,20 +185,17 @@ export function reduce(r: RoomData, actor: PlayerData, msg: ClientMsg, presence:
       break
     }
     case 'kick': {
-      hostOnly()
       lobbyOnly('Players can only be removed')
       if (msg.playerId === actor.id || !r.players.some((p) => p.id === msg.playerId)) throw new ActionError('Unknown player.')
       removePlayer(r, msg.playerId)
       break
     }
     case 'start': {
-      hostOnly()
       if (r.phase !== 'lobby') throw new ActionError('The game has already started.')
       if (r.seating.some((id) => !id)) throw new ActionError(`Seat all ${r.size} players before starting.`)
       const offline = r.seating.filter((id) => !isOnline(presence, id!, now)).map((id) => r.players.find((p) => p.id === id)!.name)
       if (offline.length) throw new ActionError(`Waiting for ${offline.join(', ')} to reconnect.`)
-      r.game = newGame(r.size)
-      r.phase = r.game.winner === null ? 'playing' : 'finished'
+      deal(r)
       break
     }
     case 'ask': {
@@ -242,7 +233,6 @@ export function reduce(r: RoomData, actor: PlayerData, msg: ClientMsg, presence:
       break
     }
     case 'skipTurn': {
-      hostOnly()
       const g = r.game
       if (!g || r.phase !== 'playing') throw new ActionError('The game is not running.')
       const current = r.players.find((p) => p.id === r.seating[g.turn])
@@ -251,12 +241,11 @@ export function reduce(r: RoomData, actor: PlayerData, msg: ClientMsg, presence:
       break
     }
     case 'backToLobby': {
-      hostOnly()
       if (r.phase === 'lobby') return false
       r.phase = 'lobby'
       r.game = null
       // Anyone who has gone away gives up their seat for the rematch.
-      for (const p of [...r.players]) if (p.id !== r.hostId && !isOnline(presence, p.id, now) && now - (presence[p.id] ?? p.joinedAt) > HOST_AWAY_MS) removePlayer(r, p.id)
+      for (const p of [...r.players]) if (!p.bot && !isOnline(presence, p.id, now) && now - (presence[p.id] ?? p.joinedAt) > 60_000) removePlayer(r, p.id)
       break
     }
     default:
@@ -265,18 +254,49 @@ export function reduce(r: RoomData, actor: PlayerData, msg: ClientMsg, presence:
   return true
 }
 
-/** Housekeeping done lazily on reads: hand over host from an absent host, drop long-gone lobby guests. */
+function deal(r: RoomData) {
+  r.game = newGame(r.size)
+  r.phase = r.game.winner === null ? 'playing' : 'finished'
+  r.autoStartAt = null
+}
+
+export const AUTO_START_MS = 10_000
+
+const tableReady = (r: RoomData, presence: Presence, now: number) => r.seating.every((id) => id && isOnline(presence, id, now))
+
+/**
+ * Auto-start, evaluated lazily on polls (like bots): the moment every seat is
+ * filled and everyone is online, a 10-second countdown starts; when it runs out
+ * the cards are dealt. If a seat empties or someone drops offline, it disarms.
+ * (Anyone can also start immediately with "Start now".) Returns true if changed.
+ */
+export function autoStart(r: RoomData, presence: Presence, now: number): boolean {
+  if (r.phase !== 'lobby') return false
+  const ready = r.seating.every(Boolean) && tableReady(r, presence, now)
+  if (!ready) {
+    if (r.autoStartAt) {
+      r.autoStartAt = null
+      return true
+    }
+    return false
+  }
+  if (!r.autoStartAt) {
+    r.autoStartAt = now + AUTO_START_MS
+    return true
+  }
+  if (now >= r.autoStartAt) {
+    deal(r)
+    return true
+  }
+  return false
+}
+
+/** Housekeeping done lazily on reads: drop lobby guests who closed the tab long ago. */
 export function maintain(r: RoomData, presence: Presence, now: number): boolean {
   let changed = false
-  const hostSeen = presence[r.hostId] ?? r.createdAt
-  if (now - hostSeen > HOST_AWAY_MS) {
-    const before = r.hostId
-    passHost(r, presence, now)
-    changed ||= r.hostId !== before
-  }
   if (r.phase === 'lobby')
     for (const p of [...r.players])
-      if (p.id !== r.hostId && now - (presence[p.id] ?? p.joinedAt) > LOBBY_DROP_MS) {
+      if (!p.bot && now - (presence[p.id] ?? p.joinedAt) > LOBBY_DROP_MS) {
         removePlayer(r, p.id)
         changed = true
       }
@@ -293,9 +313,10 @@ export function snapshotFor(r: RoomData, playerId: string, presence: Presence, n
     size: r.size,
     phase: r.phase,
     version: r.version,
-    you: { id: me.id, name: me.name, isHost: r.hostId === me.id, seat: mySeat },
+    you: { id: me.id, name: me.name, seat: mySeat },
     teamNames: teamNamesOf(r),
-    players: r.players.map((p) => ({ id: p.id, name: p.name, connected: isOnline(presence, p.id, now), isHost: p.id === r.hostId, seat: seatOf(r, p.id), bot: !!p.bot })),
+    autoStart: r.phase === 'lobby' ? { at: r.autoStartAt ?? null, now } : null,
+    players: r.players.map((p) => ({ id: p.id, name: p.name, connected: isOnline(presence, p.id, now), seat: seatOf(r, p.id), bot: !!p.bot })),
     seating: [...r.seating],
     game: g
       ? {
