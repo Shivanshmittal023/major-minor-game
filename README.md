@@ -46,7 +46,7 @@ Seats alternate teams in both modes. Card ids 0–47 are identical in both; the 
 ```
 api/room.ts        Vercel Function: GET = poll your view, POST = take an action
 server/handler.ts  the API: load room → apply → compare-and-set save (retries on conflict)
-server/room.ts     pure room logic: lobby, host controls, seating, presence, per-player snapshots
+server/room.ts     pure room logic: lobby, seating, teams, auto-start, presence, per-player snapshots
 server/game.ts     pure rules engine: deal, validate, transfer, complete, turns, end
 server/store.ts    Upstash Redis (production) or in-memory (local dev / tests)
 server/dev.ts      local stand-in for Vercel, running the same handler
