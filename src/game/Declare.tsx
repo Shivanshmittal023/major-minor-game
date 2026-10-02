@@ -3,7 +3,7 @@ import { cardsOfSet, isRedSet, setGlyph, setKind, setLabel, type SetId } from '.
 import { teamOfSeat, type TeamId } from '../../shared/rules'
 import { client, useClient } from '../net/client'
 import { Card } from '../ui/Card'
-import { Avatar, Button, Cross, Spinner, TEAM_STYLE } from '../ui/kit'
+import { Avatar, Button, Cross, Spinner, TEAM_STYLE, teamName } from '../ui/kit'
 import type { View } from './view'
 
 /** Always-available entry point: any seated player may declare at any time. */
@@ -19,7 +19,7 @@ export function DeclarePanel({ v, onOpen }: { v: View; onOpen: () => void }) {
           <div className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Any time</div>
           <div className="text-[13px] font-semibold text-fg">Declare a set</div>
           <div className="mt-0.5 text-xs text-fg-3">
-            Name who holds all six. Wrong, and {TEAM_STYLE[opp].name} take it. {open} set{open === 1 ? '' : 's'} left.
+            Name who holds all six. Wrong, and {teamName(opp)} take it. {open} set{open === 1 ? '' : 's'} left.
           </div>
         </div>
         <Button onClick={onOpen} className="shrink-0 border-champagne/35 text-champagne">
@@ -81,8 +81,8 @@ export function DeclareSheet({ v, onClose, initialSet }: { v: View; onClose: () 
             <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-champagne/80">Declaration</div>
             <h2 className="text-display mt-1 text-[30px] leading-none text-fg">Declare a set</h2>
             <p className="mt-2 text-xs text-fg-3">
-              Say which teammate holds each card. All six right: <span className={TEAM_STYLE[myTeam].text}>{TEAM_STYLE[myTeam].name}</span> win it. Any mistake:{' '}
-              <span className={TEAM_STYLE[opp].text}>{TEAM_STYLE[opp].name}</span> take it. The cards are revealed either way.
+              Say which teammate holds each card. All six right: <span className={TEAM_STYLE[myTeam].text}>{teamName(myTeam)}</span> win it. Any mistake:{' '}
+              <span className={TEAM_STYLE[opp].text}>{teamName(opp)}</span> take it. The cards are revealed either way.
             </p>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">
@@ -155,7 +155,7 @@ export function DeclareSheet({ v, onClose, initialSet }: { v: View; onClose: () 
 
         <footer className="pb-safe sticky bottom-0 border-t border-white/[0.06] bg-ink-800/95 px-5 pt-3 backdrop-blur-md">
           {confirming && complete && (
-            <p className="mb-2 text-center text-xs text-rose">Sure? If any card is wrong, {TEAM_STYLE[opp].name} win {set !== null ? setLabel(set) : 'the set'}.</p>
+            <p className="mb-2 text-center text-xs text-rose">Sure? If any card is wrong, {teamName(opp)} win {set !== null ? setLabel(set) : 'the set'}.</p>
           )}
           <Button variant="primary" size="xl" className="w-full" disabled={!complete || pending} onClick={submit}>
             {pending ? (

@@ -10,7 +10,7 @@ import { EndOverlay, SetsBoard } from '../game/Sidebar'
 import { Banner, Table } from '../game/Table'
 import { makeView, useLogEffects } from '../game/view'
 import { client } from '../net/client'
-import { Avatar, BrandMark, Button, TEAM_STYLE, useMediaQuery } from '../ui/kit'
+import { Avatar, BrandMark, Button, TEAM_STYLE, useMediaQuery, teamName } from '../ui/kit'
 
 export function GameScreen({ snap }: { snap: Snapshot }) {
   const v = useMemo(() => makeView(snap), [snap])
@@ -117,7 +117,7 @@ export function GameScreen({ snap }: { snap: Snapshot }) {
               <div className="flex items-center gap-4 text-[11px] text-fg-4">
                 {([0, 1] as TeamId[]).map((t) => (
                   <span key={t} className={`flex items-center gap-1.5 ${TEAM_STYLE[t].text}`}>
-                    <span className="h-[3px] w-4 rounded-full" style={{ background: TEAM_STYLE[t].hex }} /> {TEAM_STYLE[t].name} · {teamLabel(t)}
+                    <span className="h-[3px] w-4 rounded-full" style={{ background: TEAM_STYLE[t].hex }} /> {teamName(t)}
                   </span>
                 ))}
               </div>
@@ -147,7 +147,7 @@ function Score({ v, compact }: { v: ReturnType<typeof makeView>; compact: boolea
   const side = (t: TeamId, reverse: boolean) => (
     <div className={`flex items-center gap-2 sm:gap-3 ${reverse ? 'flex-row-reverse text-left' : 'text-right'}`}>
       <div className="leading-tight">
-        <div className={`text-xs font-medium sm:text-[13px] ${TEAM_STYLE[t].text}`}>{TEAM_STYLE[t].name}</div>
+        <div className={`text-xs font-medium sm:text-[13px] ${TEAM_STYLE[t].text}`}>{teamName(t)}</div>
         {!compact && <div className="text-[10px] text-fg-4">{teamLabel(t)}{t === myTeam ? ' · you' : ''}</div>}
       </div>
       <span className={`text-display leading-none text-fg tabular-nums ${compact ? 'text-[26px]' : 'text-[34px]'}`}>{v.g.score[t]}</span>

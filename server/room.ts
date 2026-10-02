@@ -1,6 +1,7 @@
 import { randomBytes, randomInt } from 'node:crypto'
 import { CODE_LENGTH, MAX_LOBBY, NAME_MAX, type ClientMsg, type Phase, type Snapshot } from '../shared/protocol.js'
-import { DEFAULT_SIZE, teamOfSeat, type TableSize } from '../shared/rules.js'
+import { DEFAULT_SIZE, DEFAULT_TEAM_NAMES, TEAM_NAME_MAX, teamOfSeat, type TableSize } from '../shared/rules.js'
+import { fillWithBots } from './bots.js'
 import { ask, cardCount, declare, handOf, newGame, RuleError, score, skipTurn, type Game } from './game.js'
 
 /**
@@ -15,11 +16,15 @@ export interface PlayerData {
   joinedAt: number
   /** Recently applied action ids, so a retried request is never applied twice. */
   seenActions: string[]
+  /** A practice bot (see bots.ts). */
+  bot?: true
 }
 
 export interface RoomData {
   code: string
   size: TableSize
+  /** Chosen in the lobby; colours stay Tide-blue / Ember-copper. */
+  teamNames?: [string, string]
   hostId: string
   players: PlayerData[]
   seating: (string | null)[]
@@ -74,6 +79,10 @@ export function normCode(raw: unknown): string {
 
 export const isOnline = (p: Presence, id: string, now: number) => now - (p[id] ?? 0) < ONLINE_MS
 
+export function teamNamesOf(r: RoomData): [string, string] {
+  return r.teamNames ?? [...DEFAULT_TEAM_NAMES]
+}
+
 const seatOf = (r: RoomData, id: string) => {
   const i = r.seating.indexOf(id)
   return i < 0 ? null : i
@@ -98,7 +107,7 @@ function removePlayer(r: RoomData, id: string) {
 }
 
 function passHost(r: RoomData, presence: Presence, now: number) {
-  const next = r.players.find((p) => p.id !== r.hostId && isOnline(presence, p.id, now))
+  const next = r.players.find((p) => p.id !== r.hostId && !p.bot && isOnline(presence, p.id, now))
   if (next) r.hostId = next.id
 }
 
@@ -157,6 +166,28 @@ export function reduce(r: RoomData, actor: PlayerData, msg: ClientMsg, presence:
       lobbyOnly("Teams can't change")
       // Rotate one seat: every player keeps their neighbours but changes team.
       r.seating = r.seating.map((_, i) => r.seating[(i + 1) % r.size])
+      break
+    }
+    case 'fillBots': {
+      hostOnly()
+      lobbyOnly('Bots can only join')
+      // Seat whoever asked first (so a solo tester isn't left watching), then fill the rest with bots.
+      if (seatOf(r, actor.id) === null) {
+        const free = r.seating.indexOf(null)
+        if (free >= 0) r.seating[free] = actor.id
+      }
+      if (!fillWithBots(r, now)) throw new ActionError('Every seat is already taken.')
+      break
+    }
+    case 'teamName': {
+      lobbyOnly("Team names can't change")
+      if (msg.team !== 0 && msg.team !== 1) throw new ActionError('Unknown team.')
+      const names = [...teamNamesOf(r)] as [string, string]
+      const clean = cleanName(msg.name).slice(0, TEAM_NAME_MAX)
+      const next = clean || DEFAULT_TEAM_NAMES[msg.team]
+      if (next.toLowerCase() === names[1 - msg.team].toLowerCase()) throw new ActionError('The two teams need different names.')
+      names[msg.team] = next
+      r.teamNames = names
       break
     }
     case 'kick': {
@@ -263,13 +294,14 @@ export function snapshotFor(r: RoomData, playerId: string, presence: Presence, n
     phase: r.phase,
     version: r.version,
     you: { id: me.id, name: me.name, isHost: r.hostId === me.id, seat: mySeat },
-    players: r.players.map((p) => ({ id: p.id, name: p.name, connected: isOnline(presence, p.id, now), isHost: p.id === r.hostId, seat: seatOf(r, p.id) })),
+    teamNames: teamNamesOf(r),
+    players: r.players.map((p) => ({ id: p.id, name: p.name, connected: isOnline(presence, p.id, now), isHost: p.id === r.hostId, seat: seatOf(r, p.id), bot: !!p.bot })),
     seating: [...r.seating],
     game: g
       ? {
           seats: r.seating.map((id, seat) => {
             const p = r.players.find((x) => x.id === id)
-            return { seat, playerId: id ?? '', name: p?.name ?? 'Empty seat', team: teamOfSeat(seat), cardCount: cardCount(g, seat), connected: !!p && isOnline(presence, p.id, now) }
+            return { seat, playerId: id ?? '', name: p?.name ?? 'Empty seat', team: teamOfSeat(seat), cardCount: cardCount(g, seat), connected: !!p && isOnline(presence, p.id, now), bot: !!p?.bot }
           }),
           turn: g.turn,
           completed: [...g.completed],

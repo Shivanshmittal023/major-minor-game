@@ -12,6 +12,16 @@ export const TEAM_STYLE = [
   { name: 'Ember', hex: '#e79a5c', rgb: '231 154 92', text: 'text-ember', back: '#4f3320' },
 ] as const
 
+// Team display names come from the room (players can rename teams in the lobby).
+// App sets them from each snapshot before rendering, so every label stays in sync.
+let TEAM_NAMES: [string, string] = [TEAM_STYLE[0].name, TEAM_STYLE[1].name]
+export function setTeamNames(names: [string, string] | undefined) {
+  TEAM_NAMES = names ?? [TEAM_STYLE[0].name, TEAM_STYLE[1].name]
+}
+export function teamName(t: TeamId): string {
+  return TEAM_NAMES[t]
+}
+
 export function Panel({ title, eyebrow, meta, actions, children, className = '', flush = false }: {
   title?: ReactNode
   eyebrow?: ReactNode
@@ -24,7 +34,7 @@ export function Panel({ title, eyebrow, meta, actions, children, className = '',
   return (
     <section className={`surface relative rounded-xl ${className}`}>
       {(title || actions || meta) && (
-        <header className="flex min-h-12 items-center justify-between gap-4 border-b border-white/[0.05] px-4 py-2.5 sm:px-5">
+        <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/[0.05] px-4 py-2.5 sm:px-5">
           <div className="min-w-0">
             {eyebrow && <div className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">{eyebrow}</div>}
             <div className="flex items-baseline gap-2.5">
@@ -32,7 +42,7 @@ export function Panel({ title, eyebrow, meta, actions, children, className = '',
               {meta && <span className="truncate text-xs text-fg-3">{meta}</span>}
             </div>
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+          {actions && <div className="flex max-w-full flex-wrap items-center gap-2">{actions}</div>}
         </header>
       )}
       <div className={flush ? '' : 'p-4 sm:p-5'}>{children}</div>

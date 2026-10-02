@@ -17,6 +17,8 @@ export type ClientMsg =
   | { type: 'shuffleSeats' }
   | { type: 'swapTeams' }
   | { type: 'kick'; playerId: string }
+  | { type: 'fillBots' }
+  | { type: 'teamName'; team: TeamId; name: string }
   | { type: 'start' }
   | { type: 'ask'; target: number; card: CardId; actionId: string }
   | { type: 'declare'; set: SetId; holders: number[]; actionId: string }
@@ -34,6 +36,8 @@ export interface PlayerView {
   connected: boolean
   isHost: boolean
   seat: number | null
+  /** A practice bot. */
+  bot: boolean
 }
 
 export type LogEntry =
@@ -51,6 +55,7 @@ export interface SeatView {
   team: TeamId
   cardCount: number
   connected: boolean
+  bot: boolean
 }
 
 export interface PublicGame {
@@ -73,6 +78,8 @@ export interface Snapshot {
   code: string
   /** 6 or 8 players — fixed when the table is created. */
   size: TableSize
+  /** [Team 1, Team 2] display names. */
+  teamNames: [string, string]
   phase: Phase
   version: number
   you: { id: string; name: string; isHost: boolean; seat: number | null }

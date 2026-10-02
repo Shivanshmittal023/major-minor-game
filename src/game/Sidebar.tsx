@@ -3,7 +3,7 @@ import { cardsOfSet, EXTRA_SET, isRedSet, setGlyph, setKind, setLabel, type SetI
 import { teamLabel, type TeamId } from '../../shared/rules'
 import { navigate } from '../App'
 import { client } from '../net/client'
-import { Badge, Button, Panel, TEAM_STYLE, TeamDot } from '../ui/kit'
+import { Badge, Button, Panel, TEAM_STYLE, TeamDot, teamName } from '../ui/kit'
 import type { View } from './view'
 
 /** Public set status: who completed what, plus which cards of each set you hold. */
@@ -44,7 +44,7 @@ function SetTile({ s, team, mine }: { s: SetId; team: TeamId | null; mine: numbe
           <span className="text-xs text-fg">{setKind(s)}</span>
           {extra && <span className="text-[10px] text-fg-4">8♠ 8♥ 8♦ 8♣ · 2 Jokers</span>}
         </span>
-        {team !== null ? <Badge tone={team === 0 ? 'team0' : 'team1'}>{TEAM_STYLE[team].name}</Badge> : <span className="font-mono text-[10px] text-fg-4">in play</span>}
+        {team !== null ? <Badge tone={team === 0 ? 'team0' : 'team1'}>{teamName(team)}</Badge> : <span className="font-mono text-[10px] text-fg-4">in play</span>}
       </div>
       <div className="mt-1.5 flex gap-[3px]">
         {Array.from({ length: 6 }).map((_, i) => (
@@ -74,7 +74,7 @@ export function EndOverlay({ v }: { v: View }) {
         <div className="relative text-center">
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-fg-4">Game over</div>
           <h2 className="text-display mt-2 text-[52px] leading-none text-fg">
-            {w === 'draw' ? 'A draw.' : <><span className={TEAM_STYLE[w!].text}>{TEAM_STYLE[w!].name}</span> win.</>}
+            {w === 'draw' ? 'A draw.' : <><span className={TEAM_STYLE[w!].text}>{teamName(w!)}</span> win.</>}
           </h2>
           {myTeam !== null && w !== 'draw' && <p className="mt-2 text-sm text-fg-2">{w === myTeam ? 'Your team took the table.' : 'Well played — next time.'}</p>}
           <div className="mt-6 flex items-center justify-center gap-6">
@@ -82,7 +82,7 @@ export function EndOverlay({ v }: { v: View }) {
               <div key={t} className="text-center">
                 <div className="text-display text-[56px] leading-none text-fg">{v.g.score[t]}</div>
                 <div className={`mt-1 flex items-center justify-center gap-1.5 text-xs ${TEAM_STYLE[t].text}`}>
-                  <TeamDot team={t} /> {TEAM_STYLE[t].name}
+                  <TeamDot team={t} /> {teamName(t)}
                 </div>
                 <div className="mt-2 flex justify-center gap-1">
                   {v.sets.filter((s) => v.g.completed[s] === t).map((s) => (

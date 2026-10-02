@@ -251,6 +251,12 @@ class RoomClient {
   swapTeams() {
     void this.act({ type: 'swapTeams' })
   }
+  fillBots() {
+    void this.act({ type: 'fillBots' })
+  }
+  teamName(team: 0 | 1, name: string) {
+    void this.act({ type: 'teamName', team, name })
+  }
   kick(playerId: string) {
     void this.act({ type: 'kick', playerId })
   }

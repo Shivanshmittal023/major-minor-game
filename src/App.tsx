@@ -4,6 +4,7 @@ import { GameScreen } from './screens/Game'
 import { Home } from './screens/Home'
 import { JoinRoom, RoomMessage } from './screens/Join'
 import { Lobby } from './screens/Lobby'
+import { setTeamNames } from './ui/kit'
 import { Toasts } from './ui/Toasts'
 
 function codeFromPath(): string | null {
@@ -37,6 +38,7 @@ export default function App() {
     if (snapCode && snapCode !== code) navigate(`/r/${snapCode}`)
   }, [snapCode, code])
 
+  setTeamNames(st.snapshot?.teamNames)
   let screen: React.ReactNode
   if (!code) screen = <Home />
   else if (st.fatal) screen = <RoomMessage title="Can't open this table" message={st.fatal} />

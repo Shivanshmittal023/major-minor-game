@@ -288,3 +288,73 @@ describe('memory game: no history leaves the server', () => {
     expect(JSON.stringify(host.last)).not.toContain('"log"')
   })
 })
+
+describe('practice bots', () => {
+  it.each([8, 6] as const)('one person plus bots can play a full %i-player game', async (size) => {
+    const { setBotDelay } = await import('../bots.js')
+    setBotDelay(0)
+    try {
+      const me = new Device()
+      await me.post({ type: 'create', name: 'Solo', size })
+      expect((await me.post({ type: 'fillBots' })).error).toBeUndefined()
+      expect(me.last!.players.filter((p) => p.bot)).toHaveLength(size - 1)
+      expect(me.last!.players.every((p) => p.connected)).toBe(true) // bots are always online
+      await me.post({ type: 'start' })
+      expect(me.last!.phase).toBe('playing')
+      const pick = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)]
+      for (let i = 0; i < 6000 && me.last!.phase === 'playing'; i++) {
+        await me.poll() // each poll lets a due bot make one move
+        const s = me.last!
+        if (s.phase !== 'playing' || s.game!.turn !== s.you.seat) continue
+        // My turn: declare a set my team holds entirely (from server truth, to keep the test short), else ask randomly.
+        const room = (await store.load(me.code))!
+        const g = room.game!
+        const mine = [...Array(g.completed.length).keys()].find((st) => g.completed[st] === null && cardsOfSet(st).every((c) => g.owner[c] >= 0 && teamOfSeat(g.owner[c]) === teamOfSeat(s.you.seat!)))
+        if (mine !== undefined) {
+          await me.post({ type: 'declare', set: mine, holders: cardsOfSet(mine).map((c) => g.owner[c]), actionId: `d${i}` })
+          continue
+        }
+        const hand = s.hand!
+        const opps = s.game!.seats.filter((x) => x.team !== teamOfSeat(s.you.seat!) && x.cardCount > 0)
+        if (!hand.length || !opps.length) continue
+        const set = setOf(pick(hand))
+        await me.post({ type: 'ask', target: pick(opps).seat, card: pick(cardsOfSet(set).filter((c) => !hand.includes(c))), actionId: `a${i}` })
+      }
+      await me.poll()
+      expect(me.last!.phase).toBe('finished')
+      expect(me.last!.game!.score[0] + me.last!.game!.score[1]).toBe(size === 8 ? 8 : 9)
+    } finally {
+      setBotDelay(2500)
+    }
+  }, 60_000)
+
+  it('only the host can add bots, and host is never handed to a bot', async () => {
+    const host = new Device()
+    await host.post({ type: 'create', name: 'Host', size: 6 })
+    const guest = new Device()
+    guest.code = host.code
+    await guest.post({ type: 'join', code: host.code, name: 'Guest' })
+    expect((await guest.post({ type: 'fillBots' })).error).toMatch(/Only the host/)
+    await host.post({ type: 'fillBots' })
+    await guest.post({ type: 'leave' })
+    await host.post({ type: 'leave' })
+    const room = (await store.load(host.code))!
+    expect(room.players.find((p) => p.id === room.hostId)?.bot).toBeFalsy()
+  })
+})
+
+describe('team names', () => {
+  it('anyone can rename a team; empty restores the default; names must differ', async () => {
+    const { host, others } = await table()
+    await host.poll()
+    expect(host.last!.teamNames).toEqual(['Tide', 'Ember'])
+    await others[0].post({ type: 'teamName', team: 0, name: '  Night  Owls ' })
+    expect(others[0].last!.teamNames).toEqual(['Night Owls', 'Ember'])
+    expect((await host.post({ type: 'teamName', team: 1, name: 'night owls' })).error).toMatch(/different names/)
+    await host.post({ type: 'teamName', team: 0, name: '' })
+    expect(host.last!.teamNames).toEqual(['Tide', 'Ember'])
+    await host.post({ type: 'autoSeat' })
+    await host.post({ type: 'start' })
+    expect((await host.post({ type: 'teamName', team: 0, name: 'Late' })).error).toMatch(/started/)
+  })
+})

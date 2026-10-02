@@ -1,6 +1,7 @@
 import type { ClientMsg } from '../shared/protocol.js'
 import { ActionError, addPlayer, cleanName, etagFor, findByToken, maintain, newCode, newPlayer, newRoom, normCode, reduce, snapshotFor, type RoomData } from './room.js'
 import { getStore } from './store.js'
+import { botDue, botStep, withBots } from './bots.js'
 import { isTableSize } from '../shared/rules.js'
 
 /**
@@ -27,13 +28,20 @@ const json = (body: ApiReply, status = 200) =>
 
 const GONE = 'That game is no longer available.'
 
+/** The caller's view, with practice bots always counted as online (they may have joined during this request). */
+function reply(room: RoomData, playerId: string, presence: Record<string, number>, now: number) {
+  const p = withBots(room, presence, now)
+  return { snapshot: snapshotFor(room, playerId, p, now), etag: etagFor(room, p, now) }
+}
+
 /** Load → mutate → compare-and-set save, retrying on concurrent writes. */
 async function mutate(code: string, fn: (room: RoomData, presence: Record<string, number>, now: number) => boolean | void): Promise<{ room: RoomData; presence: Record<string, number>; now: number }> {
   const store = getStore()
   for (let attempt = 0; attempt < 8; attempt++) {
-    const [room, presence] = await Promise.all([store.load(code), store.presence(code)])
+    const [room, rawPresence] = await Promise.all([store.load(code), store.presence(code)])
     if (!room) throw new ActionError(GONE, true)
     const now = Date.now()
+    const presence = withBots(room, rawPresence, now)
     const expected = room.version
     const changed = fn(room, presence, now)
     if (changed === false) return { room, presence, now }
@@ -56,6 +64,7 @@ export async function handleGet(req: Request): Promise<Response> {
     const me = findByToken(room, token)
     if (!me) return json({ error: 'You are no longer at this table.', fatal: true })
     let now = Date.now()
+    presence = withBots(room, presence, now)
     // Polling doubles as the heartbeat; write presence at most every few seconds.
     if (now - (presence[me.id] ?? 0) > 4000) {
       await store.touch(code, me.id, now)
@@ -64,10 +73,12 @@ export async function handleGet(req: Request): Promise<Response> {
     // Lazy housekeeping (rare): host handover, dropping long-gone lobby guests.
     const probe = structuredClone(room)
     if (maintain(probe, presence, now)) ({ room, presence, now } = await mutate(code, (r, p, t) => maintain(r, { ...p, [me.id]: t }, t)))
+    // Practice bots move lazily, one move per poll once the last move has played out on screen.
+    if (botDue(room, now)) ({ room, presence, now } = await mutate(code, (r, _p, t) => botStep(r, t)))
     if (!room.players.some((p) => p.id === me.id)) return json({ error: 'You are no longer at this table.', fatal: true })
-    const etag = etagFor(room, presence, now)
-    if (etag === url.searchParams.get('etag')) return json({ unchanged: true, etag })
-    return json({ snapshot: snapshotFor(room, me.id, presence, now), etag })
+    const r = reply(room, me.id, presence, now)
+    if (r.etag === url.searchParams.get('etag')) return json({ unchanged: true, etag: r.etag })
+    return json(r)
   } catch (e) {
     return fail(e)
   }
@@ -99,7 +110,7 @@ export async function handlePost(req: Request): Promise<Response> {
         if (await store.save(room, 0)) {
           await store.touch(room.code, host.id, now)
           const presence = { [host.id]: now }
-          return json({ welcome: { code: room.code, token: host.token, playerId: host.id }, snapshot: snapshotFor(room, host.id, presence, now), etag: etagFor(room, presence, now) })
+          return json({ welcome: { code: room.code, token: host.token, playerId: host.id }, ...reply(room, host.id, presence, now) })
         }
       }
       return json({ error: 'Could not create a table — please try again.' })
@@ -120,7 +131,7 @@ export async function handlePost(req: Request): Promise<Response> {
       if (!j) throw new ActionError(GONE, true)
       await store.touch(code, j.id, now)
       const pres = { ...presence, [j.id]: now }
-      return json({ welcome: { code, token: j.token, playerId: j.id }, snapshot: snapshotFor(room, j.id, pres, now), etag: etagFor(room, pres, now) })
+      return json({ welcome: { code, token: j.token, playerId: j.id }, ...reply(room, j.id, pres, now) })
     }
 
     let meId = ''
@@ -133,7 +144,7 @@ export async function handlePost(req: Request): Promise<Response> {
     await store.touch(code, meId, now)
     const pres = { ...presence, [meId]: now }
     if (msg.type === 'leave' || !room.players.some((p) => p.id === meId)) return json({})
-    return json({ snapshot: snapshotFor(room, meId, pres, now), etag: etagFor(room, pres, now) })
+    return json({ ...reply(room, meId, pres, now) })
   } catch (e) {
     return fail(e)
   }

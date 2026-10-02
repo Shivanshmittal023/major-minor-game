@@ -1,7 +1,7 @@
 import { cardShort, isRedSet, setGlyph, setKind, setKindShort, setLabel } from '../../shared/cards'
 import { teamOfSeat, type TeamId } from '../../shared/rules'
 import { Card, CardBack } from '../ui/Card'
-import { Avatar, Check, Cross, TEAM_STYLE, TeamDot, useNewKeys } from '../ui/kit'
+import { Avatar, Check, Cross, TEAM_STYLE, TeamDot, useNewKeys, teamName } from '../ui/kit'
 import { seatPos, type Effects, type View } from './view'
 
 interface Props {
@@ -105,7 +105,7 @@ export function Banner({ v, fx, inline = false }: { v: View; fx: Effects; inline
           {fx.revealed ? (
             <span key="r" className={`animate-rise inline-flex items-center gap-1 ${b.correct ? 'text-sage' : 'text-rose'}`}>
               {b.correct ? <Check className="h-3 w-3" /> : <Cross className="h-3 w-3" />}
-              {b.correct ? `Correct — ${TEAM_STYLE[b.team].name} win the set` : `Wrong — ${TEAM_STYLE[b.team].name} take the set`}
+              {b.correct ? `Correct — ${teamName(b.team)} win the set` : `Wrong — ${teamName(b.team)} take the set`}
             </span>
           ) : (
             dots
@@ -145,6 +145,9 @@ function Seat({ v, seat, compact, miss, picking, targeted, onTarget }: { v: View
   const isMe = seat === v.me
   const selectable = picking && v.canTarget(seat)
   const empty = sv.cardCount === 0
+  // On your turn, teammates can't be asked — fade them back so only real targets stand out.
+  const teammate = v.myTurn && v.me !== null && seat !== v.me && teamOfSeat(seat) === teamOfSeat(v.me)
+  const faded = teammate ? 'opacity-35 saturate-50' : empty ? 'opacity-45' : ''
 
   const ring = targeted ? 'border-champagne/70 ring-2 ring-champagne/30' : selectable ? 'border-dashed border-champagne/40' : isTurn ? 'border-champagne/35' : ''
 
@@ -154,7 +157,7 @@ function Seat({ v, seat, compact, miss, picking, targeted, onTarget }: { v: View
         type="button"
         disabled={!selectable}
         onClick={() => onTarget(seat)}
-        className={`relative flex w-[76px] flex-col items-center gap-1 rounded-xl border border-transparent p-1.5 transition-all ${ring} ${selectable ? 'bg-white/[0.03]' : ''} ${empty ? 'opacity-45' : ''}`}
+        className={`relative flex w-[76px] flex-col items-center gap-1 rounded-xl border border-transparent p-1.5 transition-all duration-300 ${ring} ${selectable ? 'bg-white/[0.03]' : ''} ${faded}`}
       >
         {miss !== null && <span key={miss} className="animate-ripple pointer-events-none absolute inset-0 rounded-xl" />}
         <span className="relative">
@@ -163,6 +166,8 @@ function Seat({ v, seat, compact, miss, picking, targeted, onTarget }: { v: View
         </span>
         <span className={`max-w-full truncate text-[11px] ${isMe ? 'text-champagne' : 'text-fg-2'}`}>{v.nameOf(seat)}</span>
         {selectable && <span className="-mt-0.5 rounded-full border border-champagne/40 bg-ink-900 px-1.5 text-[9px] font-medium leading-[14px] text-champagne">Ask</span>}
+        {teammate && <span className="-mt-0.5 text-[9px] text-fg-4">Teammate</span>}
+        {sv.bot && !teammate && !selectable && <span className="-mt-0.5 text-[9px] text-fg-4">bot</span>}
         {!sv.connected && <span className="text-[9px] text-rose/80">offline</span>}
       </button>
     )
@@ -172,7 +177,7 @@ function Seat({ v, seat, compact, miss, picking, targeted, onTarget }: { v: View
       type="button"
       disabled={!selectable}
       onClick={() => onTarget(seat)}
-      className={`surface-raised group relative w-[210px] rounded-xl p-3 text-left transition-all duration-200 ${ring} ${selectable ? 'cursor-pointer hover:-translate-y-0.5 hover:border-champagne/60' : 'cursor-default'} ${empty ? 'opacity-50' : ''}`}
+      className={`surface-raised group relative w-[210px] rounded-xl p-3 text-left transition-all duration-200 ${ring} ${selectable ? 'cursor-pointer hover:-translate-y-0.5 hover:border-champagne/60' : 'cursor-default'} ${faded} duration-300`}
     >
       <span className="absolute inset-x-3 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${st.hex}, transparent)`, opacity: 0.7 }} />
       {miss !== null && <span key={miss} className="animate-ripple pointer-events-none absolute inset-0 rounded-xl" />}
@@ -183,8 +188,10 @@ function Seat({ v, seat, compact, miss, picking, targeted, onTarget }: { v: View
             <span className={`truncate text-[13px] font-semibold ${isMe ? 'text-champagne' : 'text-fg'}`}>{v.nameOf(seat)}</span>
             <span className="font-mono text-[10px] text-fg-4">#{seat + 1}</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <span className={`${st.text} opacity-80`}>{st.name}</span>
+          <div className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[11px]">
+            <span className={`truncate ${st.text} opacity-80`}>{teamName(team)}</span>
+            {sv.bot && <span className="text-fg-4">· bot</span>}
+            {teammate && <span className="text-fg-4">· teammate</span>}
             {!sv.connected && <span className="text-rose/80">· reconnecting</span>}
           </div>
         </div>
@@ -219,14 +226,14 @@ function Pile({ v, team, side }: { v: View; team: TeamId; side: 'left' | 'right'
   return (
     <div className={`absolute top-1/2 flex w-[150px] -translate-y-1/2 flex-col gap-1.5 ${side === 'left' ? 'left-[7%] items-start' : 'right-[7%] items-end'}`}>
       <div className={`flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] ${st.text} opacity-80`}>
-        <TeamDot team={team} size={5} /> {st.name} · {sets.length} won
+        <TeamDot team={team} size={5} /> {teamName(team)} · {sets.length} won
       </div>
       <div className={`flex min-h-[38px] flex-wrap gap-1.5 ${side === 'right' ? 'justify-end' : ''}`}>
         {sets.length === 0 && <span className="h-[38px] w-[30px] rounded-[4px] border border-dashed border-white/[0.08]" />}
         {sets.map((s) => {
           const red = isRedSet(s)
           return (
-            <span key={s} className={`relative h-[38px] w-[30px] ${fresh.has(s) ? 'animate-reveal' : ''}`} style={fresh.has(s) ? { animationDelay: '1700ms' } : undefined} title={`${setLabel(s)} · ${st.name}`}>
+            <span key={s} className={`relative h-[38px] w-[30px] ${fresh.has(s) ? 'animate-reveal' : ''}`} style={fresh.has(s) ? { animationDelay: '1700ms' } : undefined} title={`${setLabel(s)} · ${teamName(team)}`}>
               <CardBack team={team} className="absolute inset-0 h-full w-full -translate-x-[3px] translate-y-px rotate-[-11deg]" />
               <CardBack team={team} className="absolute inset-0 h-full w-full translate-x-[3px] rotate-[8deg]" />
               <span className={`paper absolute inset-0 flex flex-col items-center justify-center rounded-[4px] leading-none ${red ? 'text-crimson' : 'text-inkcard'}`}>

@@ -3,7 +3,7 @@ import { cardShort, isRedSet, setGlyph, setKind, type CardId, type SetId } from 
 import { teamOfSeat } from '../../shared/rules'
 import { client, useClient } from '../net/client'
 import { Card } from '../ui/Card'
-import { Avatar, Badge, Button, Cross, Spinner, TEAM_STYLE } from '../ui/kit'
+import { Avatar, Badge, Button, Cross, Spinner, TEAM_STYLE, teamName } from '../ui/kit'
 import type { View } from './view'
 
 /**
@@ -112,7 +112,7 @@ export function AskSheet({ v, target, focusSet, onClose }: { v: View; target: nu
           <Avatar name={sv.name} team={sv.team} size={44} dim={!sv.connected} />
           <div className="min-w-0 flex-1">
             <div className={`font-mono text-[10px] uppercase tracking-[0.16em] ${TEAM_STYLE[sv.team].text}`}>
-              {TEAM_STYLE[sv.team].name} · {sv.cardCount} card{sv.cardCount === 1 ? '' : 's'}
+              {teamName(sv.team)} · {sv.cardCount} card{sv.cardCount === 1 ? '' : 's'}
             </div>
             <h2 className="text-display truncate text-[30px] leading-none text-fg">Ask {sv.name}</h2>
           </div>

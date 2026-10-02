@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import type { PlayerView, Snapshot } from '../../shared/protocol'
-import { MODES, RULES_SUMMARY, teamLabel, teamOfSeat, type TeamId } from '../../shared/rules'
+import { DEFAULT_TEAM_NAMES, MODES, RULES_SUMMARY, TEAM_NAME_MAX, teamLabel, teamOfSeat, type TeamId } from '../../shared/rules'
 import { navigate } from '../App'
 import { client } from '../net/client'
-import { Avatar, Badge, BrandMark, Button, Check, Cross, Panel, TEAM_STYLE, TeamDot, useMediaQuery } from '../ui/kit'
+import { Avatar, Badge, BrandMark, Button, Check, Cross, Panel, TEAM_STYLE, TeamDot, useMediaQuery, teamName } from '../ui/kit'
 
 export function Lobby({ snap }: { snap: Snapshot }) {
   const isHost = snap.you.isHost
@@ -94,10 +94,16 @@ export function Lobby({ snap }: { snap: Snapshot }) {
                     <Button size="sm" onClick={() => client.swapTeams()} disabled={seated === 0} title="Everyone moves one seat, so every player changes team">
                       Swap teams
                     </Button>
+                    {isHost && (
+                      <Button size="sm" onClick={() => client.fillBots()} disabled={seated === n} title="Fill every empty seat with a practice bot — handy for testing alone">
+                        Fill with bots
+                      </Button>
+                    )}
                   </div>
                 )
               }
             >
+              <TeamNames names={snap.teamNames} />
               <SeatingBoard snap={snap} picked={picked} onSeat={clickSeat} onUnseat={(id) => client.seat(id, null)} />
             </Panel>
             <Rules />
@@ -199,12 +205,13 @@ function PlayerRow({ p, you, canKick, picked, onPick }: { p: PlayerView; you: bo
           <span className={`truncate text-[13px] font-medium ${picked ? 'text-champagne' : 'text-fg'}`}>{p.name}</span>
           {you && <span className="text-[11px] text-fg-4">you</span>}
           {p.isHost && <Badge tone="accent">Host</Badge>}
+          {p.bot && <Badge>Bot</Badge>}
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-fg-3">
           <span className={`h-1.5 w-1.5 rounded-full ${p.connected ? 'bg-sage' : 'bg-fg-4'}`} />
           {p.connected ? 'Online' : 'Offline'}
           <span className="text-fg-4">·</span>
-          {p.seat === null ? <span className="text-fg-4">Not seated</span> : <span className={TEAM_STYLE[teamOfSeat(p.seat)].text}>Seat {p.seat + 1} · {TEAM_STYLE[teamOfSeat(p.seat)].name}</span>}
+          {p.seat === null ? <span className="text-fg-4">Not seated</span> : <span className={TEAM_STYLE[teamOfSeat(p.seat)].text}>Seat {p.seat + 1} · {teamName(teamOfSeat(p.seat))}</span>}
         </div>
       </div>
       {canKick && !you && (
@@ -254,7 +261,7 @@ function SeatingBoard({ snap, picked, onSeat, onUnseat }: { snap: Snapshot; pick
             {p ? (p.id === snap.you.id ? `${p.name} (you)` : p.name) : <span className="group-hover:text-champagne/80">{picked ? 'Place here' : 'Sit here'}</span>}
           </span>
           <span className={`block text-[10px] ${st.text} opacity-80`}>
-            Seat {seat + 1} · {st.name}
+            Seat {seat + 1} · {teamName(team)}
           </span>
         </span>
         {p && (
@@ -281,7 +288,7 @@ function SeatingBoard({ snap, picked, onSeat, onUnseat }: { snap: Snapshot; pick
         {([0, 1] as TeamId[]).map((t) => (
           <div key={t} className="space-y-2">
             <div className={`flex items-center gap-1.5 text-xs font-medium ${TEAM_STYLE[t].text}`}>
-              <TeamDot team={t} /> {TEAM_STYLE[t].name} <span className="text-fg-4">· {teamLabel(t)}</span>
+              <TeamDot team={t} /> {teamName(t)} <span className="text-fg-4">· {teamLabel(t)}</span>
             </div>
             {Array.from({ length: snap.size / 2 }, (_, k) => slot(k * 2 + t, true))}
           </div>
@@ -305,7 +312,7 @@ function SeatingBoard({ snap, picked, onSeat, onUnseat }: { snap: Snapshot; pick
           <div className="mt-1 flex items-center gap-3 text-[11px]">
             {([0, 1] as TeamId[]).map((t) => (
               <span key={t} className={`flex items-center gap-1.5 ${TEAM_STYLE[t].text}`}>
-                <TeamDot team={t} /> {TEAM_STYLE[t].name} {snap.seating.filter((id, i) => id && teamOfSeat(i) === t).length}/{snap.size / 2}
+                <TeamDot team={t} /> {teamName(t)} {snap.seating.filter((id, i) => id && teamOfSeat(i) === t).length}/{snap.size / 2}
               </span>
             ))}
           </div>
@@ -338,5 +345,44 @@ function Rules() {
         ))}
       </dl>
     </Panel>
+  )
+}
+
+/** Anyone in the lobby can name the teams. Saved on blur or Enter; empty restores the default. */
+function TeamNames({ names }: { names: [string, string] }) {
+  return (
+    <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {([0, 1] as TeamId[]).map((t) => (
+        <TeamNameInput key={`${t}:${names[t]}`} team={t} value={names[t]} />
+      ))}
+    </div>
+  )
+}
+
+function TeamNameInput({ team, value }: { team: TeamId; value: string }) {
+  const [draft, setDraft] = useState(value)
+  const st = TEAM_STYLE[team]
+  const save = () => {
+    const next = draft.trim()
+    if (next !== value) client.teamName(team, next)
+  }
+  return (
+    <label className="flex h-11 items-center gap-2.5 rounded-lg border border-white/[0.08] bg-black/25 px-3 transition-colors focus-within:border-champagne/45" style={{ boxShadow: `inset 3px 0 0 ${st.hex}` }}>
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">{teamLabel(team)}</span>
+      <input
+        value={draft}
+        maxLength={TEAM_NAME_MAX}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+          if (e.key === 'Escape') setDraft(value)
+        }}
+        placeholder={DEFAULT_TEAM_NAMES[team]}
+        aria-label={`${teamLabel(team)} name`}
+        className={`text-display min-w-0 flex-1 bg-transparent text-lg leading-none placeholder:text-fg-4 focus:outline-none ${st.text}`}
+      />
+      <span className="text-[10px] text-fg-4">rename</span>
+    </label>
   )
 }

@@ -67,6 +67,10 @@ export const MODES: Record<TableSize, Mode> = {
 
 export const DEFAULT_SIZE: TableSize = 8
 
+/** Team names are editable in the lobby; these are the defaults. */
+export const DEFAULT_TEAM_NAMES: readonly [string, string] = ['Tide', 'Ember']
+export const TEAM_NAME_MAX = 16
+
 export function isTableSize(x: unknown): x is TableSize {
   return x === 6 || x === 8
 }
