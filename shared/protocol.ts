@@ -59,7 +59,13 @@ export interface PublicGame {
   /** Per set: team that completed it (cards are then out of play), or null. */
   completed: (TeamId | null)[]
   score: [number, number]
-  log: LogEntry[]
+  /**
+   * Only the last few public events — enough to animate what just happened.
+   * The full history never leaves the server: players are meant to remember it.
+   */
+  recent: LogEntry[]
+  /** Asks made so far (drives the turn counter). */
+  askCount: number
   winner: TeamId | 'draw' | null
 }
 

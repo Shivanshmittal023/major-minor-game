@@ -89,7 +89,7 @@ export interface Effects {
  * nothing animates — only events that arrive while you're watching.
  */
 export function useLogEffects(v: View, compact: boolean): Effects {
-  const log = v.g.log
+  const log = v.g.recent
   const lastId = log.length ? log[log.length - 1].id : 0
   const seen = useRef<number | null>(null)
   const isBanner = (e: LogEntry): e is BannerEntry => e.kind === 'ask' || e.kind === 'declare'

@@ -261,3 +261,30 @@ describe('Redis presence parsing', () => {
     expect(parsePresence(['a', 'x'])).toEqual({})
   })
 })
+
+describe('memory game: no history leaves the server', () => {
+  it('devices only ever receive the last few events, plus an ask counter', async () => {
+    const { host, all } = await table()
+    await host.post({ type: 'autoSeat' })
+    await host.post({ type: 'start' })
+    await Promise.all(all.map((d) => d.poll()))
+    const bySeat = new Map(all.map((d) => [d.last!.you.seat!, d]))
+    for (let i = 0; i < 15; i++) {
+      const room = (await store.load(host.code))!
+      const g = room.game!
+      const d = bySeat.get(g.turn)!
+      await d.poll()
+      const hand = d.last!.hand!
+      const card = cardsOfSet(setOf(hand[0])).find((c) => !hand.includes(c))!
+      const opp = d.last!.game!.seats.find((s) => s.team !== teamOfSeat(g.turn) && s.cardCount > 0)!
+      await d.post({ type: 'ask', target: opp.seat, card, actionId: `m${i}` })
+    }
+    const full = (await store.load(host.code))!.game!.log.length
+    await host.poll()
+    const snap = host.last!.game!
+    expect(full).toBeGreaterThan(10)
+    expect(snap.recent.length).toBeLessThanOrEqual(6)
+    expect(snap.askCount).toBe(15)
+    expect(JSON.stringify(host.last)).not.toContain('"log"')
+  })
+})

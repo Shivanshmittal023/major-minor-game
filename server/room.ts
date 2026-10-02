@@ -34,6 +34,8 @@ export type Presence = Record<string, number>
 
 /** A player counts as online if their device polled within this window. */
 export const ONLINE_MS = 15_000
+/** Events sent to clients for animation. Older history stays server-side (it's a memory game). */
+export const RECENT_EVENTS = 6
 const HOST_AWAY_MS = 60_000
 const LOBBY_DROP_MS = 10 * 60_000
 
@@ -272,7 +274,8 @@ export function snapshotFor(r: RoomData, playerId: string, presence: Presence, n
           turn: g.turn,
           completed: [...g.completed],
           score: score(g),
-          log: g.log,
+          recent: g.log.slice(-RECENT_EVENTS),
+          askCount: g.log.filter((e) => e.kind === 'ask').length,
           winner: g.winner,
         }
       : null,

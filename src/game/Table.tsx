@@ -16,7 +16,7 @@ interface Props {
 
 export function Table({ v, fx, compact, picking, target, onTarget }: Props) {
   const { g, viewer } = v
-  const turnNo = g.log.filter((e) => e.kind === 'ask').length + 1
+  const turnNo = g.askCount + 1
   const myTeam = teamOfSeat(viewer)
   const rx = compact ? 40 : 39
   const ry = compact ? 38 : 37
@@ -162,6 +162,7 @@ function Seat({ v, seat, compact, miss, picking, targeted, onTarget }: { v: View
           <span className="absolute -bottom-1 -right-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-white/10 bg-ink-800 px-1 font-mono text-[10px] text-fg">{sv.cardCount}</span>
         </span>
         <span className={`max-w-full truncate text-[11px] ${isMe ? 'text-champagne' : 'text-fg-2'}`}>{v.nameOf(seat)}</span>
+        {selectable && <span className="-mt-0.5 rounded-full border border-champagne/40 bg-ink-900 px-1.5 text-[9px] font-medium leading-[14px] text-champagne">Ask</span>}
         {!sv.connected && <span className="text-[9px] text-rose/80">offline</span>}
       </button>
     )

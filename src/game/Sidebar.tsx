@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { cardShort, cardsOfSet, EXTRA_SET, isRedSet, setGlyph, setKind, setLabel, type SetId } from '../../shared/cards'
-import type { LogEntry } from '../../shared/protocol'
+import { cardsOfSet, EXTRA_SET, isRedSet, setGlyph, setKind, setLabel, type SetId } from '../../shared/cards'
 import { teamLabel, type TeamId } from '../../shared/rules'
 import { navigate } from '../App'
 import { client } from '../net/client'
@@ -58,78 +57,6 @@ function SetTile({ s, team, mine }: { s: SetId; team: TeamId | null; mine: numbe
       </div>
       <div className="mt-1 text-[10px] text-fg-4">{team !== null ? `Won by ${teamLabel(team)}` : mine ? `You hold ${mine}` : 'You hold none'}</div>
     </div>
-  )
-}
-
-function describe(v: View, e: LogEntry): { title: React.ReactNode; detail?: React.ReactNode; tone: 'good' | 'bad' | 'accent' | 'neutral' } {
-  const n = v.nameOf
-  switch (e.kind) {
-    case 'start':
-      return { title: 'Cards dealt — 6 each', detail: `${n(e.first)} ${e.first === v.me ? 'go' : 'goes'} first`, tone: 'accent' }
-    case 'ask':
-      return {
-        title: (
-          <>
-            {n(e.asker)} → {e.target === v.me ? 'you' : n(e.target)} <span className="text-fg-3">for</span> {cardShort(e.card)}
-          </>
-        ),
-        detail: e.success ? `${e.target === v.me ? 'You' : n(e.target)} handed it over` : `${e.target === v.me ? "You didn't" : `${n(e.target)} didn't`} have it`,
-        tone: e.success ? 'good' : 'bad',
-      }
-    case 'declare': {
-      const wrong = e.claimed.map((h, i) => (h === e.actual[i] ? null : cardShort(cardsOfSet(e.set)[i]))).filter(Boolean)
-      return {
-        title: `${n(e.declarer)} declared ${setLabel(e.set)}`,
-        detail: e.correct ? `Correct — ${TEAM_STYLE[e.team].name} win the set` : `Wrong on ${wrong.join(' ')} — ${TEAM_STYLE[e.team].name} take the set`,
-        tone: e.correct ? 'good' : 'bad',
-      }
-    }
-    case 'skip':
-      return { title: `${n(e.from)} skipped`, detail: e.reason === 'no-cards' ? `No cards left — ${n(e.to)} plays` : `Skipped by the host — ${n(e.to)} plays`, tone: 'neutral' }
-    case 'end':
-      return { title: e.winner === 'draw' ? 'Game drawn' : `${TEAM_STYLE[e.winner].name} win`, detail: `${e.score[0]} – ${e.score[1]}`, tone: 'accent' }
-  }
-}
-
-export function GameLog({ v, className = '' }: { v: View; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const len = v.g.log.length
-  useEffect(() => {
-    const el = ref.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [len])
-  return (
-    <section className={`surface flex min-h-0 flex-col rounded-xl ${className}`}>
-      <header className="flex min-h-12 shrink-0 items-center border-b border-white/[0.05] px-4 py-2.5 sm:px-5">
-        <div>
-          <div className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Log</div>
-          <div className="flex items-baseline gap-2.5">
-            <h2 className="text-[13px] font-semibold text-fg">Game history</h2>
-            <span className="text-xs text-fg-3">{v.g.log.filter((e) => e.kind === 'ask').length} asks</span>
-          </div>
-        </div>
-      </header>
-      <div ref={ref} className="max-h-[360px] min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5">
-        <ol className="relative">
-          {len > 1 && <span className="absolute bottom-3 left-[11px] top-3 w-px bg-white/[0.06]" />}
-          {v.g.log.map((e, i) => {
-            const d = describe(v, e)
-            const dot = { good: 'bg-sage', bad: 'bg-rose', accent: 'bg-champagne', neutral: 'bg-fg-4' }[d.tone]
-            return (
-              <li key={e.id} className={`relative flex gap-3.5 py-1.5 ${i === len - 1 ? 'animate-rise' : ''}`}>
-                <span className="relative z-10 mt-[2px] flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border border-white/10 bg-ink-850">
-                  <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] text-fg">{d.title}</div>
-                  {d.detail && <div className={`text-xs ${d.tone === 'good' ? 'text-sage/90' : d.tone === 'bad' ? 'text-rose/90' : 'text-fg-3'}`}>{d.detail}</div>}
-                </div>
-              </li>
-            )
-          })}
-        </ol>
-      </div>
-    </section>
   )
 }
 

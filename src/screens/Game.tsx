@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { setShortLabel, type CardId, type SetId } from '../../shared/cards'
+import { setShortLabel, type SetId } from '../../shared/cards'
 import type { Snapshot } from '../../shared/protocol'
 import { teamLabel, type TeamId } from '../../shared/rules'
 import { navigate } from '../App'
-import { AskPanel } from '../game/AskPanel'
+import { AskPanel, AskSheet } from '../game/AskPanel'
 import { DeclarePanel, DeclareSheet } from '../game/Declare'
 import { Hand } from '../game/Hand'
-import { EndOverlay, GameLog, SetsBoard } from '../game/Sidebar'
+import { EndOverlay, SetsBoard } from '../game/Sidebar'
 import { Banner, Table } from '../game/Table'
 import { makeView, useLogEffects } from '../game/view'
 import { client } from '../net/client'
@@ -16,18 +16,10 @@ export function GameScreen({ snap }: { snap: Snapshot }) {
   const v = useMemo(() => makeView(snap), [snap])
   const compact = !useMediaQuery('(min-width: 1024px)')
   const fx = useLogEffects(v, compact)
-  const [card, setCard] = useState<CardId | null>(null)
-  const [target, setTarget] = useState<number | null>(null)
+  // Asking is seat-first: tap an opponent → their valid cards → tap one.
+  const [askTarget, setAskTarget] = useState<number | null>(null)
   const [focusSet, setFocusSet] = useState<SetId | null>(null)
-  const [tab, setTab] = useState<'sets' | 'log'>('sets')
   const [declaring, setDeclaring] = useState(false)
-
-  // Clear the selection whenever the turn moves on.
-  const turnKey = `${v.g.turn}:${v.g.log.length}`
-  useEffect(() => {
-    setCard(null)
-    setTarget(null)
-  }, [turnKey])
 
   // A nudge when it becomes your turn: tab title + a short vibration on phones.
   const wasMyTurn = useRef(v.myTurn)
@@ -38,8 +30,14 @@ export function GameScreen({ snap }: { snap: Snapshot }) {
   }, [v.myTurn])
   useEffect(() => () => void (document.title = 'Major–Minor'), [])
 
-  const picking = v.myTurn && card !== null
   const closeDeclare = useCallback(() => setDeclaring(false), [])
+  const closeAsk = useCallback(() => setAskTarget(null), [])
+  const sheets = (
+    <>
+      {askTarget !== null && <AskSheet v={v} target={askTarget} focusSet={focusSet} onClose={closeAsk} />}
+      {declaring && v.me !== null && <DeclareSheet v={v} initialSet={focusSet} onClose={closeDeclare} />}
+    </>
+  )
 
   const header = (
     <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-ink-950/85 backdrop-blur-md">
@@ -78,23 +76,16 @@ export function GameScreen({ snap }: { snap: Snapshot }) {
         {header}
         <main className="space-y-3 px-3 py-3">
           <section className="surface overflow-hidden rounded-2xl">
-            <Table v={v} fx={fx} compact picking={picking} target={target} onTarget={setTarget} />
+            <Table v={v} fx={fx} compact picking={v.myTurn} target={askTarget} onTarget={setAskTarget} />
             {fx.banner && (
               <div className="border-t border-white/[0.05] px-3 py-2.5">
                 <Banner v={v} fx={fx} inline />
               </div>
             )}
           </section>
-          <AskPanel v={v} card={card} setCard={setCard} target={target} setTarget={setTarget} focusSet={focusSet} />
+          <AskPanel v={v} onPick={setAskTarget} />
           <DeclarePanel v={v} onOpen={() => setDeclaring(true)} />
-          <div className="flex gap-1 rounded-lg border border-white/[0.06] bg-black/25 p-0.5">
-            {(['sets', 'log'] as const).map((t) => (
-              <button key={t} type="button" onClick={() => setTab(t)} className={`h-8 flex-1 rounded-md text-xs font-medium ${tab === t ? 'bg-white/[0.09] text-fg' : 'text-fg-3'}`}>
-                {t === 'sets' ? 'Sets' : 'History'}
-              </button>
-            ))}
-          </div>
-          {tab === 'sets' ? <SetsBoard v={v} /> : <GameLog v={v} />}
+          <SetsBoard v={v} />
         </main>
         {v.me !== null && (
           <div className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.07] bg-ink-900/95 px-2 pt-2 backdrop-blur-md">
@@ -105,7 +96,7 @@ export function GameScreen({ snap }: { snap: Snapshot }) {
             <Hand v={v} compact focusSet={focusSet} onFocusSet={setFocusSet} />
           </div>
         )}
-        {declaring && v.me !== null && <DeclareSheet v={v} initialSet={focusSet} onClose={closeDeclare} />}
+        {sheets}
         <EndOverlay v={v} />
       </div>
     )
@@ -131,7 +122,7 @@ export function GameScreen({ snap }: { snap: Snapshot }) {
                 ))}
               </div>
             </header>
-            <Table v={v} fx={fx} compact={false} picking={picking} target={target} onTarget={setTarget} />
+            <Table v={v} fx={fx} compact={false} picking={v.myTurn} target={askTarget} onTarget={setAskTarget} />
             {v.me !== null && (
               <div className="border-t border-white/[0.05] bg-black/15 px-6 pb-4 pt-3">
                 <Hand v={v} compact={false} focusSet={focusSet} onFocusSet={setFocusSet} />
@@ -140,13 +131,12 @@ export function GameScreen({ snap }: { snap: Snapshot }) {
           </section>
         </div>
         <aside className="space-y-5">
-          <AskPanel v={v} card={card} setCard={setCard} target={target} setTarget={setTarget} focusSet={focusSet} />
+          <AskPanel v={v} onPick={setAskTarget} />
           <DeclarePanel v={v} onOpen={() => setDeclaring(true)} />
           <SetsBoard v={v} />
-          <GameLog v={v} />
         </aside>
       </main>
-      {declaring && v.me !== null && <DeclareSheet v={v} initialSet={focusSet} onClose={closeDeclare} />}
+      {sheets}
       <EndOverlay v={v} />
     </div>
   )
