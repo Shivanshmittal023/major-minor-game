@@ -5,6 +5,7 @@ import { MODES, teamOfSeat, type TableSize } from '../../shared/rules'
 import { navigate } from '../App'
 import { client, savedName, useClient } from '../net/client'
 import { Card } from '../ui/Card'
+import { HowToPlay } from './HowToPlay'
 import { BrandMark, Button, Spinner, TEAM_STYLE } from '../ui/kit'
 
 const HERO = ['as', 'kh', '9d', 'qc', '7s'].map((c) => parseCard(c)!)
@@ -33,7 +34,12 @@ export function Home() {
       <header className="border-b border-white/[0.06]">
         <div className="mx-auto flex h-[68px] max-w-6xl items-center justify-between px-5 sm:px-6">
           <BrandMark />
-          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-fg-4">6 or 8 players · 2 teams</span>
+          <div className="flex items-center gap-4">
+            <span className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-fg-4 sm:inline">6 or 8 players · 2 teams</span>
+            <a href="#rules" className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[13px] text-fg transition-colors hover:border-champagne/40 hover:text-champagne">
+              How to play
+            </a>
+          </div>
         </div>
       </header>
 
@@ -132,6 +138,8 @@ export function Home() {
             Open the Solver <span aria-hidden>→</span>
           </span>
         </a>
+
+        <HowToPlay />
       </main>
     </div>
   )

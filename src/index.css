@@ -206,3 +206,6 @@ body::before {
 
 html { -webkit-tap-highlight-color: transparent; }
 button { touch-action: manipulation; }
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

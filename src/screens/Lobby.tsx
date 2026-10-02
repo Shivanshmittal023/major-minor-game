@@ -119,7 +119,7 @@ export function Lobby({ snap }: { snap: Snapshot }) {
             ) : blocker ? (
               <span className="text-fg-3">{blocker} · the game deals itself once everyone's in</span>
             ) : snap.autoStart?.cancelled ? (
-              <span className="text-fg-2">Countdown cancelled — arrange the seats, then start when everyone's ready.</span>
+              <span className="text-fg-2">Changing seats — the timer is off. Rearrange the table, then tap Start game when everyone's ready.</span>
             ) : (
               <span className="flex items-center gap-2 text-sage">
                 <Check /> Table is ready — all {n} seated and online
@@ -439,10 +439,10 @@ function CountdownModal({ msLeft, total }: { msLeft: number; total: number }) {
             <span className="mt-1 text-[11px] text-fg-3">seconds</span>
           </div>
         </div>
-        <p className="mt-4 text-[13px] text-fg-3">Dealing when the timer ends. Cancel to rearrange seats first — then start whenever you're ready.</p>
+        <p className="mt-4 text-[13px] text-fg-3">Dealing when the timer ends. Want different teams? Tap <span className="text-fg-2">Change seats</span> to stop the timer and rearrange — then start whenever you're ready.</p>
         <div className="pb-safe mt-5 grid grid-cols-2 gap-2">
           <Button size="xl" onClick={() => client.cancelAutoStart()}>
-            Cancel
+            Change seats
           </Button>
           <Button variant="primary" size="xl" onClick={() => client.start()}>
             Start now
