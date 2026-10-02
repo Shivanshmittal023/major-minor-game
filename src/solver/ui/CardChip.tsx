@@ -1,5 +1,5 @@
 import { useContext } from 'react'
-import { cardLabel, isRed, rankOf, SUIT_SYMBOL, suitOf, type CardId } from '../engine/cards'
+import { cardLabel, isRed, JOKER_COLOURFUL, pipOf, rankOf, type CardId } from '../engine/cards'
 import { GameContext } from './context'
 
 export type ChipVariant = 'known' | 'possible' | 'impossible' | 'out' | 'plain' | 'token'
@@ -33,6 +33,12 @@ const INLINE = {
 export function CardChip({ card, variant = 'plain', size = 'sm', prob, onClick, selected, disabled, title, inspect = true, fresh, className = '', style }: Props) {
   const ctx = useContext(GameContext)
   const red = isRed(card)
+  // Jokers: ★ (Colourful, printed in muted multi-colour) and ☆ (Colourless).
+  const pipStyle: React.CSSProperties | undefined =
+    card === JOKER_COLOURFUL && (variant === 'known' || variant === 'plain' || selected)
+      ? { backgroundImage: 'linear-gradient(135deg, #b3261e 10%, #c9922e 40%, #3d7a57 65%, #3a5aa6 90%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }
+      : undefined
+  const pip = <span style={pipStyle}>{pipOf(card)}</span>
   const paper = variant === 'known' || variant === 'plain' || selected
   const ink = red ? 'text-crimson' : 'text-inkcard'
 
@@ -62,9 +68,9 @@ export function CardChip({ card, variant = 'plain', size = 'sm', prob, onClick, 
     <>
       <span className={`absolute left-1.5 top-1 flex flex-col items-center leading-none ${size === 'xl' ? 'text-[22px]' : 'text-base'}`}>
         <span className="text-display">{rankOf(card)}</span>
-        <span className={size === 'xl' ? 'text-sm' : 'text-[11px]'}>{SUIT_SYMBOL[suitOf(card)]}</span>
+        <span className={size === 'xl' ? 'text-sm' : 'text-[11px]'}>{pip}</span>
       </span>
-      <span className={size === 'xl' ? 'mt-3 text-[40px]' : 'mt-2 text-2xl'}>{SUIT_SYMBOL[suitOf(card)]}</span>
+      <span className={size === 'xl' ? 'mt-3 text-[40px]' : 'mt-2 text-2xl'}>{pip}</span>
       <span className={`absolute bottom-1 right-1.5 rotate-180 leading-none ${size === 'xl' ? 'text-[22px]' : 'text-base'}`}>
         <span className="text-display">{rankOf(card)}</span>
       </span>
@@ -72,7 +78,7 @@ export function CardChip({ card, variant = 'plain', size = 'sm', prob, onClick, 
   ) : (
     <>
       <span className="tracking-[-0.02em]">{rankOf(card)}</span>
-      <span className="ml-px">{SUIT_SYMBOL[suitOf(card)]}</span>
+      <span className="ml-px">{pip}</span>
       {prob !== undefined && variant === 'possible' && <span className="ml-1 font-mono text-[9px] font-normal text-fg-3">{Math.round(prob * 100)}</span>}
     </>
   )

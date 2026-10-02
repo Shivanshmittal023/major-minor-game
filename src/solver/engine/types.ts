@@ -1,11 +1,17 @@
 import type { CardId, SetId } from './cards'
+import { MODES, type TableSize } from '../../../shared/rules'
 
-/** Seat index 0..7. Seats alternate teams: even seats = Team 1, odd seats = Team 2. */
+/** Seat index. Seats alternate teams: even seats = Team 1, odd seats = Team 2. */
 export type PlayerId = number
 export type TeamId = 0 | 1
 
+/** Largest table; per-game sizes come from modeOf(setup). */
 export const NUM_PLAYERS = 8
-export const HAND_SIZE = 6
+
+/** Table size, deck, hand size and sets for a setup (old saved games have no size → 8 players). */
+export function modeOf(setup: { size?: TableSize }) {
+  return MODES[setup.size ?? 8]
+}
 
 export function teamOf(p: PlayerId): TeamId {
   return (p % 2) as TeamId
@@ -15,15 +21,19 @@ export function teamLabel(t: TeamId): string {
   return t === 0 ? 'Team 1' : 'Team 2'
 }
 
-export function playersOfTeam(t: TeamId): PlayerId[] {
-  return [0, 1, 2, 3, 4, 5, 6, 7].filter((p) => p % 2 === t)
+export function playersOfTeam(t: TeamId, n: number = NUM_PLAYERS): PlayerId[] {
+  return Array.from({ length: n }, (_, p) => p).filter((p) => p % 2 === t)
 }
 
 export interface GameSetup {
-  players: string[] // 8 names, index = seat
+  /** 6 or 8 players (default 8). 6 players adds the 8s & Jokers set and deals 9 each. */
+  size?: TableSize
+  players: string[] // one name per seat
   me: PlayerId
-  myCards: CardId[] // my 6 starting cards
+  myCards: CardId[] // my starting hand (6 cards, or 9 at a 6-player table)
   firstTurn: PlayerId
+  /** Display names for [Team 1, Team 2]. */
+  teamNames?: [string, string]
 }
 
 /**
@@ -70,3 +80,13 @@ export type NewEvent =
   | Omit<AskEvent, 'id' | 'ts'>
   | Omit<DeclareEvent, 'id' | 'ts'>
   | Omit<FactEvent, 'id' | 'ts'>
+
+/** Seat indices at this table (6 or 8). */
+export function seatsOf(setup: { size?: TableSize; players?: string[] }): PlayerId[] {
+  return Array.from({ length: modeOf(setup).players }, (_, p) => p)
+}
+
+/** Sets in play at this table, in display order (9 with the 8s & Jokers set at 6 players). */
+export function setsOf(setup: { size?: TableSize }): SetId[] {
+  return modeOf(setup).sets
+}

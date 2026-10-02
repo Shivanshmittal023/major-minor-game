@@ -48,7 +48,7 @@ function diffInsights(prev: GameState, next: GameState, ev: GameEvent): string[]
   const out: string[] = []
   const pk = prev.knowledge
   const nk = next.knowledge
-  for (let c = 0; c < 48; c++) {
+  for (let c = 0; c < next.knowledge.cards.length; c++) {
     const a = pk.cards[c]
     const b = nk.cards[c]
     if (ev.kind === 'ask' && ev.success && ev.card === c) continue

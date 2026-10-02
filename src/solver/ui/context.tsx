@@ -9,6 +9,8 @@ export interface Ctx {
   name: (p: number) => string
   hoverCard: (card: number | null, el?: HTMLElement | null) => void
   inspectPlayer: (p: number | null) => void
+  /** Open the tap-a-seat sheet to record an ask of `target`. */
+  recordAsk: (target: number) => void
   /** Take a completed set off the table: records it directly when every holder is known, otherwise opens the lay-down form. */
   layDown: (set: number) => void
   /** Pending request for the composer to open a specific form (bumped nonce = new request). */
@@ -37,3 +39,12 @@ export const TEAM_STYLE = [
     dot: 'bg-ember', text: 'text-ember', soft: 'bg-ember/10', bar: 'bg-ember', border: 'border-ember/35', ring: 'ring-ember/60', back: '#503421',
   },
 ] as const
+
+/** Team names chosen in setup; the dashboard sets these before rendering. */
+let TEAM_NAMES: [string, string] = [TEAM_STYLE[0].name, TEAM_STYLE[1].name]
+export function setTeamNames(names?: [string, string]) {
+  TEAM_NAMES = [names?.[0] || TEAM_STYLE[0].name, names?.[1] || TEAM_STYLE[1].name]
+}
+export function teamName(t: number): string {
+  return TEAM_NAMES[t]
+}

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { isMajorSet, SET_DISPLAY_ORDER, SUIT_SYMBOL, suitOfSet, type SetId } from '../engine/cards'
-import { teamLabel, teamOf, type TeamId } from '../engine/types'
+import { type SetId } from '../engine/cards'
+import { isRedSet, setGlyph, setKind } from '../engine/cards'
+import { teamLabel, teamOf, type TeamId, setsOf } from '../engine/types'
 import { CardChip } from './CardChip'
-import { TEAM_STYLE, useCtx } from './context'
+import { TEAM_STYLE, teamName, useCtx } from './context'
 import { pct } from './format'
 import { Badge, Button, Panel } from './kit'
 
@@ -24,7 +25,7 @@ export function SetTracker() {
       }
     >
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {SET_DISPLAY_ORDER.map((s) => (
+        {setsOf(state.setup).map((s) => (
           <SetTile key={s} s={s} />
         ))}
       </div>
@@ -46,7 +47,7 @@ function SetTile({ s }: { s: SetId }) {
   const sk = kn.sets[s]
   const myTeam = teamOf(setup.me)
   const opp = (1 - myTeam) as TeamId
-  const red = suitOfSet(s) === 'H' || suitOfSet(s) === 'D'
+  const red = isRedSet(s)
   const mine = sk.certainByTeam[myTeam]
   const theirs = sk.certainByTeam[opp]
   const done = sk.completedBy !== null
@@ -65,7 +66,7 @@ function SetTile({ s }: { s: SetId }) {
   }, [sk.completedBy])
 
   let status: React.ReactNode = null
-  if (done) status = <Badge tone={sk.completedBy === 0 ? 'team0' : 'team1'}>{TEAM_STYLE[sk.completedBy!].name}{sk.laidDownBy === null ? ' · held' : ''}</Badge>
+  if (done) status = <Badge tone={sk.completedBy === 0 ? 'team0' : 'team1'}>{teamName(sk.completedBy!)}{sk.laidDownBy === null ? ' · held' : ''}</Badge>
   else if (mine >= 4) status = <Badge tone="accent">{6 - mine} to go</Badge>
   else if (theirs >= 4) status = <Badge tone="bad">Threat</Badge>
 
@@ -77,8 +78,8 @@ function SetTile({ s }: { s: SetId }) {
     <div className={`relative overflow-hidden rounded-xl border border-white/[0.06] bg-black/20 p-3 transition-colors hover:border-white/[0.1] ${celebrate ? 'foil' : ''}`} style={doneStyle}>
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-baseline gap-2">
-          <span className={`text-display text-[26px] leading-none ${red ? 'text-rose' : 'text-fg'}`}>{SUIT_SYMBOL[suitOfSet(s)]}</span>
-          <span className="text-[13px] font-medium text-fg">{isMajorSet(s) ? 'Major' : 'Minor'}</span>
+          <span className={`text-display text-[26px] leading-none ${red ? 'text-rose' : 'text-fg'}`}>{setGlyph(s)}</span>
+          <span className="text-[13px] font-medium text-fg">{setKind(s)}</span>
         </div>
         {status}
       </div>

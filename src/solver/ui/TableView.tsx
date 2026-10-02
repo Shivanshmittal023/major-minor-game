@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { cardLabel, cardsOfSet, isMajorSet, SET_DISPLAY_ORDER, setLabel, setOf, setShortLabel, SUIT_SYMBOL, suitOfSet, type CardId } from '../engine/cards'
-import { teamLabel, teamOf, type PlayerId, type TeamId } from '../engine/types'
+import { cardLabel, cardsOfSet, EXTRA_SET, setLabel, setOf, setShortLabel, type CardId } from '../engine/cards'
+import { isRedSet, setGlyph, setKind, setKindShort } from '../engine/cards'
+import { teamLabel, teamOf, type PlayerId, type TeamId, seatsOf, setsOf } from '../engine/types'
+import { canAsk } from './asks'
 import { CardBack, CardChip } from './CardChip'
-import { TEAM_STYLE, useCtx } from './context'
+import { TEAM_STYLE, teamName, useCtx } from './context'
 import { describeEvent, pct } from './format'
 import { Avatar, Badge, Button, Check, Cross, Segmented, TeamDot, useNewKeys } from './kit'
 
@@ -14,15 +16,15 @@ export function PlayersPanel({ tab, onTab }: { tab: KnowledgeTab; onTab: (t: Kno
   const out = state.knowledge.cards.filter((c) => c.status === 'out').length
   return (
     <section className="surface relative overflow-hidden rounded-2xl">
-      <header className="flex items-end justify-between gap-6 px-6 pb-4 pt-5">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-4 pb-4 pt-5 sm:px-6">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-fg-4">Live table</div>
-          <h2 className="text-display mt-1 text-[28px] leading-none text-fg">Players & card knowledge</h2>
+          <h2 className="text-display mt-1 text-[24px] leading-none text-fg sm:text-[28px]">Players & card knowledge</h2>
         </div>
         <div className="flex items-center gap-5">
           <div className="hidden items-center gap-5 text-xs text-fg-3 md:flex">
             <Stat value={known} label="located" />
-            <Stat value={48 - known - out} label="uncertain" />
+            <Stat value={state.knowledge.cards.length - known - out} label="uncertain" />
             <Stat value={out} label="laid down" />
           </div>
           <Segmented
@@ -37,7 +39,16 @@ export function PlayersPanel({ tab, onTab }: { tab: KnowledgeTab; onTab: (t: Kno
         </div>
       </header>
       <div className="border-t border-white/[0.05]">
-        {tab === 'table' && <TableScene />}
+        {tab === 'table' && (
+          <>
+            <div className="md:hidden">
+              <PhoneTable />
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <TableScene />
+            </div>
+          </>
+        )}
         {tab === 'roster' && <Roster />}
         {tab === 'matrix' && <KnowledgeMatrix />}
       </div>
@@ -58,11 +69,67 @@ function Stat({ value, label }: { value: number; label: string }) {
 // Table scene
 // ---------------------------------------------------------------------------
 
-function seatPos(p: PlayerId, me: PlayerId) {
+function seatPos(p: PlayerId, me: PlayerId, n: number, rx = 39, ry = 37) {
   // Me at the bottom centre, then clockwise in seat order.
-  const k = (p - me + 8) % 8
-  const a = Math.PI / 2 + (k * Math.PI) / 4
-  return { x: 50 + 39 * Math.cos(a), y: 50 + 37 * Math.sin(a), a }
+  const k = (p - me + n) % n
+  const a = Math.PI / 2 + (k * 2 * Math.PI) / n
+  return { x: 50 + rx * Math.cos(a), y: 50 + ry * Math.sin(a), a }
+}
+
+/** Is `p` a teammate of whoever is to play (and not them)? Those seats fade, as in the game. */
+function benched(state: ReturnType<typeof useCtx>['state'], p: PlayerId) {
+  const turn = state.timeline.nextTurn
+  return p !== turn && teamOf(p) === teamOf(turn)
+}
+
+type Flight = { id: string; card: CardId; from: Pt; to: Pt; delay: number }
+
+/** Card movement: a transfer flies seat → seat; a lay-down sends all six cards to `pile(team)`. */
+function useFlights(pos: (p: PlayerId) => Pt, pile: (t: TeamId) => Pt): Flight[] {
+  const { state } = useCtx()
+  const { events } = state
+  const lastEv = events[events.length - 1]
+  const [flights, setFlights] = useState<Flight[]>([])
+  const prevLen = useRef(events.length)
+  const posRef = useRef({ pos, pile })
+  posRef.current = { pos, pile }
+  useEffect(() => {
+    const grew = events.length === prevLen.current + 1
+    prevLen.current = events.length
+    if (!grew || !lastEv) return
+    const { pos, pile } = posRef.current
+    let next: Flight[] = []
+    if (lastEv.kind === 'ask' && lastEv.success) next = [{ id: lastEv.id, card: lastEv.card, from: pos(lastEv.target), to: pos(lastEv.requester), delay: 0 }]
+    else if (lastEv.kind === 'declare')
+      next = cardsOfSet(lastEv.set).map((c, i) => ({ id: `${lastEv.id}-${i}`, card: c, from: pos(lastEv.holders[i]), to: pile(lastEv.team), delay: i * 70 }))
+    if (!next.length) return
+    setFlights(next)
+    const t = setTimeout(() => setFlights([]), 1300 + next.length * 70)
+    return () => clearTimeout(t)
+  }, [events.length, lastEv])
+  return flights
+}
+
+function Flights({ flights, size }: { flights: Flight[]; size: 'sm' | 'lg' }) {
+  return (
+    <>
+      {flights.map((f) => (
+        <div
+          key={f.id}
+          className="animate-fly pointer-events-none absolute z-20"
+          style={{
+            animationDelay: `${f.delay}ms`,
+            ['--x0' as string]: `${f.from.x}%`,
+            ['--y0' as string]: `${f.from.y}%`,
+            ['--x1' as string]: `${f.to.x}%`,
+            ['--y1' as string]: `${f.to.y}%`,
+          }}
+        >
+          <CardChip card={f.card} size={size} variant="known" inspect={false} className="shadow-[0_20px_40px_-10px_rgba(0,0,0,0.9)]" />
+        </div>
+      ))}
+    </>
+  )
 }
 
 type Pt = { x: number; y: number }
@@ -73,33 +140,14 @@ function pilePos(team: TeamId, myTeam: TeamId): Pt {
 }
 
 function TableScene() {
-  const { state, name, layDown } = useCtx()
+  const { state, name, layDown, recordAsk } = useCtx()
   const { setup, timeline: tl, events, knowledge: kn } = state
   const myTeam = teamOf(setup.me)
-  const ready = SET_DISPLAY_ORDER.filter((s) => kn.sets[s].heldBy !== null && kn.sets[s].laidDownBy === null)
+  const ready = setsOf(state.setup).filter((s) => kn.sets[s].heldBy !== null && kn.sets[s].laidDownBy === null)
   const lastEv = events[events.length - 1]
   const last = lastEv ? describeEvent(setup, lastEv) : null
-
-  // Animate card movement: a transfer flies seat → seat; a lay-down sends all six
-  // cards from their holders into the team's pile, off the table.
-  const [flights, setFlights] = useState<{ id: string; card: CardId; from: Pt; to: Pt; delay: number }[]>([])
-  const prevLen = useRef(events.length)
-  useEffect(() => {
-    const grew = events.length === prevLen.current + 1
-    prevLen.current = events.length
-    if (!grew || !lastEv) return
-    let next: typeof flights = []
-    if (lastEv.kind === 'ask' && lastEv.success)
-      next = [{ id: lastEv.id, card: lastEv.card, from: seatPos(lastEv.target, setup.me), to: seatPos(lastEv.requester, setup.me), delay: 0 }]
-    else if (lastEv.kind === 'declare')
-      next = cardsOfSet(lastEv.set).map((c, i) => ({
-        id: `${lastEv.id}-${i}`, card: c, from: seatPos(lastEv.holders[i], setup.me), to: pilePos(lastEv.team, myTeam), delay: i * 70,
-      }))
-    if (!next.length) return
-    setFlights(next)
-    const t = setTimeout(() => setFlights([]), 1300 + next.length * 70)
-    return () => clearTimeout(t)
-  }, [events.length, lastEv, setup.me, myTeam])
+  const n = setup.players.length
+  const flights = useFlights((p) => seatPos(p, setup.me, n), (t) => pilePos(t, myTeam))
   const missId = lastEv?.kind === 'ask' && !lastEv.success ? lastEv.id : null
 
   return (
@@ -116,8 +164,8 @@ function TableScene() {
         <div className="absolute inset-[14px] rounded-[50%] border border-white/[0.045]" />
         <div className="absolute inset-[30px] rounded-[50%] border border-dashed border-white/[0.035]" />
         {/* team ticks on the rim, one per seat */}
-        {[0, 1, 2, 3, 4, 5, 6, 7].map((p) => {
-          const { a } = seatPos(p, setup.me)
+        {seatsOf(state.setup).map((p) => {
+          const { a } = seatPos(p, setup.me, n)
           return (
             <span
               key={p}
@@ -164,30 +212,27 @@ function TableScene() {
         </div>
       </div>
 
-      {[0, 1, 2, 3, 4, 5, 6, 7].map((p) => {
-        const { x, y } = seatPos(p, setup.me)
+      {seatsOf(state.setup).map((p) => {
+        const { x, y } = seatPos(p, setup.me, n)
+        const askable = canAsk(state, tl.nextTurn, p)
         return (
-          <div key={p} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${x}%`, top: `${y}%` }}>
+          <div key={p} className={`absolute -translate-x-1/2 -translate-y-1/2 transition-opacity duration-300 ${benched(state, p) ? 'opacity-40 hover:opacity-100' : ''}`} style={{ left: `${x}%`, top: `${y}%` }}>
             <Seat p={p} missId={lastEv?.kind === 'ask' && lastEv.target === p ? missId : null} />
+            {askable && (
+              <button
+                type="button"
+                onClick={() => recordAsk(p)}
+                title={`Record ${name(tl.nextTurn)} asking ${name(p)} for a card`}
+                className="absolute -bottom-3 left-1/2 inline-flex h-6 -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-champagne/45 bg-ink-900 px-2.5 text-[11px] font-medium text-champagne shadow-lg transition-colors hover:bg-champagne/15"
+              >
+                Ask {p === setup.me ? 'you' : name(p)}
+              </button>
+            )}
           </div>
         )
       })}
 
-      {flights.map((f) => (
-        <div
-          key={f.id}
-          className="animate-fly pointer-events-none absolute z-20"
-          style={{
-            animationDelay: `${f.delay}ms`,
-            ['--x0' as string]: `${f.from.x}%`,
-            ['--y0' as string]: `${f.from.y}%`,
-            ['--x1' as string]: `${f.to.x}%`,
-            ['--y1' as string]: `${f.to.y}%`,
-          }}
-        >
-          <CardChip card={f.card} size="lg" variant="known" inspect={false} className="shadow-[0_20px_40px_-10px_rgba(0,0,0,0.9)]" />
-        </div>
-      ))}
+      <Flights flights={flights} size="lg" />
 
       <div className="absolute bottom-4 left-6 flex items-center gap-4 text-[11px] text-fg-4">
         <span className="flex items-center gap-1.5"><span className="paper inline-block h-3 w-2.5 rounded-[2px]" /> located card</span>
@@ -198,28 +243,120 @@ function TableScene() {
   )
 }
 
+/**
+ * The phone table, laid out like the game's: avatars around an oval, the turn
+ * ring, cards flying between seats. Tap an opponent of whoever is to play to
+ * record their ask; tap anyone else for what's known about them.
+ */
+function PhoneTable() {
+  const { state, name, layDown, recordAsk, inspectPlayer } = useCtx()
+  const { setup, timeline: tl, events, knowledge: kn } = state
+  const n = setup.players.length
+  const turn = tl.nextTurn
+  const lastEv = events[events.length - 1]
+  const last = lastEv ? describeEvent(setup, lastEv) : null
+  const pos = (p: PlayerId) => seatPos(p, setup.me, n, 40, 40)
+  const flights = useFlights(pos, () => ({ x: 50, y: 50 }))
+  const ready = setsOf(setup).filter((s) => kn.sets[s].heldBy !== null && kn.sets[s].laidDownBy === null)
+  const missId = lastEv?.kind === 'ask' && !lastEv.success ? lastEv.id : null
+
+  return (
+    <div className="px-2 pb-3">
+      <div className="relative mx-auto aspect-square w-full max-w-[420px]">
+        <div
+          className="absolute inset-[20%] rounded-[50%]"
+          style={{
+            background: 'radial-gradient(ellipse at 50% 30%, #1b2130 0%, #11141c 55%, #0b0d12 100%)',
+            boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.07), inset 0 -20px 40px rgb(0 0 0 / 0.45), 0 20px 50px -20px rgb(0 0 0 / 0.9)',
+          }}
+        />
+        <div className="absolute inset-[20%] flex flex-col items-center justify-center px-3 text-center">
+          <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-fg-4">Turn {events.length + 1}</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[13px]">
+            <TeamDot player={turn} />
+            {turn === setup.me ? <span className="font-medium text-champagne">Your move</span> : <span className="text-fg-2">{name(turn)} to play</span>}
+          </div>
+          {last && (
+            <div key={lastEv!.id} className={`animate-rise mt-1.5 line-clamp-2 text-[11px] leading-snug ${last.ok === false ? 'text-rose' : last.ok ? 'text-sage' : 'text-fg-3'}`}>
+              {last.title} · {last.result}
+            </div>
+          )}
+          {ready.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => layDown(s)}
+              className="animate-rise mt-1.5 inline-flex h-7 items-center gap-1.5 rounded-full border border-champagne/40 bg-champagne/[0.1] px-2.5 text-[11px] font-medium text-champagne"
+            >
+              <TeamDot team={kn.sets[s].heldBy!} /> Lay down {setShortLabel(s)}
+            </button>
+          ))}
+        </div>
+
+        {seatsOf(setup).map((p) => {
+          const { x, y } = pos(p)
+          const pk = kn.players[p]
+          const askable = canAsk(state, turn, p)
+          const out = pk.handCount === 0
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => (askable ? recordAsk(p) : inspectPlayer(p))}
+              aria-label={askable ? `Record ${name(turn)} asking ${name(p)}` : `Details for ${name(p)}`}
+              className={`absolute flex w-[78px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5 rounded-xl px-1 py-1 transition-opacity duration-300 ${
+                benched(state, p) || out ? 'opacity-40' : ''
+              }`}
+              style={{ left: `${x}%`, top: `${y}%` }}
+            >
+              <span className="relative">
+                {lastEv?.kind === 'ask' && lastEv.target === p && missId && <span key={missId} className="animate-ripple pointer-events-none absolute inset-0 rounded-full" />}
+                <Avatar name={name(p)} player={p} size={42} active={p === turn} />
+                <span className="text-display absolute -bottom-1 -right-2 flex h-5 min-w-5 items-center justify-center rounded-full border border-white/10 bg-ink-900 px-1 text-[13px] leading-none text-fg">
+                  {pk.handCount}
+                </span>
+              </span>
+              <span className="mt-1 max-w-full truncate text-[11px] font-medium text-fg">{name(p)}</span>
+              {askable ? (
+                <span className="rounded-full border border-champagne/45 bg-champagne/[0.08] px-2 text-[10px] font-medium leading-4 text-champagne">Ask</span>
+              ) : (
+                p !== setup.me && <span className="font-mono text-[9px] leading-4 text-fg-4">{pk.known.length} known</span>
+              )}
+            </button>
+          )
+        })}
+
+        <Flights flights={flights} size="sm" />
+      </div>
+      <p className="px-2 text-center text-[11px] leading-relaxed text-fg-4">
+        Tap an <span className="text-champagne">Ask</span> seat to record {turn === setup.me ? 'your' : `${name(turn)}’s`} ask · tap anyone else for details
+      </p>
+    </div>
+  )
+}
+
 /** A team's completed sets, stacked face down inside the table — out of play. */
 function Pile({ team, side }: { team: TeamId; side: 'left' | 'right' }) {
   const { state } = useCtx()
-  const sets = SET_DISPLAY_ORDER.filter((s) => state.knowledge.sets[s].laidDownBy === team)
+  const sets = setsOf(state.setup).filter((s) => state.knowledge.sets[s].laidDownBy === team)
   const fresh = useNewKeys(sets)
   const st = TEAM_STYLE[team]
   return (
     <div className={`absolute top-1/2 flex w-[150px] -translate-y-1/2 flex-col gap-1.5 ${side === 'left' ? 'left-[7%] items-start' : 'right-[7%] items-end'}`}>
       <div className={`flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] ${st.text} opacity-80`}>
-        <TeamDot team={team} size={5} /> {st.name} · {sets.length} won
+        <TeamDot team={team} size={5} /> {teamName(team)} · {sets.length} won
       </div>
       <div className={`flex min-h-[38px] flex-wrap gap-1.5 ${side === 'right' ? 'justify-end' : ''}`}>
         {sets.length === 0 && <span className="flex h-[38px] w-[30px] items-center justify-center rounded-[4px] border border-dashed border-white/[0.08] text-[9px] text-fg-4" />}
         {sets.map((s) => {
-          const red = suitOfSet(s) === 'H' || suitOfSet(s) === 'D'
+          const red = isRedSet(s)
           return (
             <span key={s} className={`relative h-[38px] w-[30px] ${fresh.has(s) ? 'animate-reveal' : ''}`} style={fresh.has(s) ? { animationDelay: '700ms' } : undefined} title={`${setLabel(s)} · laid down by ${teamLabel(team)}`}>
               <CardBack team={team} className="absolute inset-0 h-full w-full -translate-x-[3px] translate-y-px rotate-[-11deg]" />
               <CardBack team={team} className="absolute inset-0 h-full w-full translate-x-[3px] rotate-[8deg]" />
               <span className={`paper absolute inset-0 flex flex-col items-center justify-center rounded-[4px] leading-none ${red ? 'text-crimson' : 'text-inkcard'}`}>
-                <span className="text-sm">{SUIT_SYMBOL[suitOfSet(s)]}</span>
-                <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-wide opacity-70">{isMajorSet(s) ? 'Maj' : 'Min'}</span>
+                <span className="text-sm">{setGlyph(s)}</span>
+                <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-wide opacity-70">{setKindShort(s)}</span>
               </span>
             </span>
           )
@@ -258,7 +395,7 @@ function Seat({ p, missId }: { p: PlayerId; missId: string | null }) {
             <span className="truncate text-[13px] font-semibold text-fg">{name(p)}</span>
             <span className="font-mono text-[10px] text-fg-4">#{p + 1}</span>
           </div>
-          <div className={`text-[11px] ${TEAM_STYLE[t].text} opacity-80`}>{TEAM_STYLE[t].name} · {teamLabel(t)}</div>
+          <div className={`text-[11px] ${TEAM_STYLE[t].text} opacity-80`}>{teamName(t)} · {teamLabel(t)}</div>
         </div>
         <div className="text-right">
           <div className="text-display text-2xl leading-none text-fg">{pk.handCount}</div>
@@ -297,10 +434,10 @@ function Affinity({ p }: { p: PlayerId }) {
   pk.known.forEach((c) => known.set(setOf(c), (known.get(setOf(c)) ?? 0) + 1))
   return (
     <div className="mt-2.5 flex items-end justify-between border-t border-white/[0.05] pt-2">
-      {[0, 1, 2, 3].map((suit) => (
-        <div key={suit} className="flex items-end gap-1">
-          <span className={`text-[10px] leading-none ${suit === 1 || suit === 2 ? 'text-rose/70' : 'text-fg-3'}`}>{SUIT_SYMBOL[suitOfSet(suit)]}</span>
-          {[suit, suit + 4].map((s) => {
+      {[[0, 4], [1, 5], [2, 6], [3, 7], ...(setsOf(state.setup).includes(EXTRA_SET) ? [[EXTRA_SET]] : [])].map((group) => (
+        <div key={group[0]} className="flex items-end gap-1">
+          <span className={`text-[10px] leading-none ${isRedSet(group[0]) ? 'text-rose/70' : 'text-fg-3'}`}>{setGlyph(group[0])}</span>
+          {group.map((s) => {
             const e = Math.max(0, pk.expectedBySet[s] - (known.get(s) ?? 0))
             const h = Math.min(1, e / 2.2)
             const laid = state.knowledge.sets[s].laidDownBy !== null
@@ -323,7 +460,7 @@ function Affinity({ p }: { p: PlayerId }) {
 function Roster() {
   const { state, name, inspectPlayer } = useCtx()
   const { setup, knowledge: kn, timeline: tl } = state
-  const order = [0, 1, 2, 3, 4, 5, 6, 7].sort((a, b) => teamOf(a) - teamOf(b) || a - b)
+  const order = seatsOf(state.setup).sort((a, b) => teamOf(a) - teamOf(b) || a - b)
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[13px]">
@@ -347,7 +484,7 @@ function Roster() {
               <tr
                 key={p}
                 onClick={() => inspectPlayer(p)}
-                className={`cursor-pointer border-t align-middle transition-colors hover:bg-white/[0.025] ${i === 4 ? 'border-white/10' : 'border-white/[0.04]'}`}
+                className={`cursor-pointer border-t align-middle transition-colors hover:bg-white/[0.025] ${i === order.length / 2 ? 'border-white/10' : 'border-white/[0.04]'}`}
               >
                 <td className="whitespace-nowrap px-6 py-2.5">
                   <div className="flex items-center gap-2.5">
@@ -398,7 +535,8 @@ function Roster() {
 export function KnowledgeMatrix() {
   const { state, name, hoverCard } = useCtx()
   const { knowledge: kn } = state
-  const order = [0, 1, 2, 3, 4, 5, 6, 7].sort((a, b) => teamOf(a) - teamOf(b) || a - b)
+  const order = seatsOf(state.setup).sort((a, b) => teamOf(a) - teamOf(b) || a - b)
+  const half = order.length / 2
   return (
     <div>
       <div className="max-h-[660px] overflow-auto">
@@ -407,19 +545,19 @@ export function KnowledgeMatrix() {
             <tr className="border-b border-white/[0.06]">
               <th className="px-6 py-2.5 text-left font-mono text-[10px] font-normal uppercase tracking-[0.12em] text-fg-4">Card</th>
               {order.map((p, i) => (
-                <th key={p} className={`px-1 py-2.5 font-medium text-fg-2 ${i === 4 ? 'border-l border-white/10' : ''}`}>
+                <th key={p} className={`px-1 py-2.5 font-medium text-fg-2 ${i === half ? 'border-l border-white/10' : ''}`}>
                   <span className="inline-flex items-center gap-1.5"><TeamDot player={p} />{name(p)}</span>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {SET_DISPLAY_ORDER.map((s) => kn.sets[s].laidDownBy !== null ? [
+            {setsOf(state.setup).map((s) => kn.sets[s].laidDownBy !== null ? [
               <tr key={`h${s}`}>
-                <td colSpan={9} className="border-t border-white/[0.05] px-6 py-2 text-[11px] text-fg-4">
+                <td colSpan={order.length + 1} className="border-t border-white/[0.05] px-6 py-2 text-[11px] text-fg-4">
                   <span className="inline-flex items-center gap-2">
-                    <span className={suitOfSet(s) === 'H' || suitOfSet(s) === 'D' ? 'text-rose/60' : 'text-fg-3'}>{SUIT_SYMBOL[suitOfSet(s)]}</span>
-                    <span className="text-fg-3">{isMajorSet(s) ? 'Major' : 'Minor'}</span>
+                    <span className={isRedSet(s) ? 'text-rose/60' : 'text-fg-3'}>{setGlyph(s)}</span>
+                    <span className="text-fg-3">{setKind(s)}</span>
                     <span>· off the table, laid down by</span>
                     <span className={TEAM_STYLE[kn.sets[s].laidDownBy!].text}>{teamLabel(kn.sets[s].laidDownBy!)}</span>
                   </span>
@@ -427,8 +565,8 @@ export function KnowledgeMatrix() {
               </tr>,
             ] : [
               <tr key={`h${s}`}>
-                <td colSpan={9} className="border-t border-white/[0.05] bg-white/[0.015] px-6 py-1.5 text-[11px] text-fg-3">
-                  <span className={suitOfSet(s) === 'H' || suitOfSet(s) === 'D' ? 'text-rose' : 'text-fg-2'}>{SUIT_SYMBOL[suitOfSet(s)]}</span> {isMajorSet(s) ? 'Major' : 'Minor'}
+                <td colSpan={order.length + 1} className="border-t border-white/[0.05] bg-white/[0.015] px-6 py-1.5 text-[11px] text-fg-3">
+                  <span className={isRedSet(s) ? 'text-rose' : 'text-fg-2'}>{setGlyph(s)}</span> {setKind(s)}
                 </td>
               </tr>,
               ...kn.sets[s].cards.map((c) => {
@@ -439,7 +577,7 @@ export function KnowledgeMatrix() {
                       <CardChip card={c} size="xs" variant={ck.status === 'out' ? 'out' : ck.status === 'known' ? 'known' : 'possible'} inspect={false} />
                     </td>
                     {order.map((p, i) => {
-                      const sep = i === 4 ? 'border-l border-white/10' : ''
+                      const sep = i === half ? 'border-l border-white/10' : ''
                       if (ck.status === 'out') return <td key={p} className={`text-center text-fg-4 ${sep}`}>—</td>
                       const hex = TEAM_STYLE[teamOf(p)].rgb
                       if (ck.owner === p)
@@ -486,7 +624,7 @@ export function PlayerDrawer({ player, onClose }: { player: number; onClose: () 
   const kn = state.knowledge
   const t = teamOf(player)
   const isMe = player === state.setup.me
-  const bySet = (cards: CardId[]) => SET_DISPLAY_ORDER.map((s) => ({ s, cs: cards.filter((c) => setOf(c) === s) })).filter((g) => g.cs.length)
+  const bySet = (cards: CardId[]) => setsOf(state.setup).map((s) => ({ s, cs: cards.filter((c) => setOf(c) === s) })).filter((g) => g.cs.length)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -519,14 +657,14 @@ export function PlayerDrawer({ player, onClose }: { player: number; onClose: () 
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/50" onClick={onClose}>
-      <aside className="surface-raised animate-drawer h-full w-[460px] overflow-y-auto rounded-none border-y-0 border-r-0" onClick={(e) => e.stopPropagation()}>
+      <aside className="surface-raised animate-drawer h-full w-full max-w-[460px] overflow-y-auto rounded-none border-y-0 border-r-0" onClick={(e) => e.stopPropagation()}>
         <div className="relative overflow-hidden px-7 pb-6 pt-7">
           <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(420px 180px at 0% 0%, rgb(${TEAM_STYLE[t].rgb} / 0.16), transparent 70%)` }} />
           <div className="relative flex items-start justify-between">
             <div className="flex items-center gap-4">
               <Avatar name={name(player)} player={player} size={52} />
               <div>
-                <div className={`text-xs ${TEAM_STYLE[t].text}`}>{TEAM_STYLE[t].name} · {teamLabel(t)} · Seat {player + 1}</div>
+                <div className={`text-xs ${TEAM_STYLE[t].text}`}>{teamName(t)} · {teamLabel(t)} · Seat {player + 1}</div>
                 <h3 className="text-display text-[34px] leading-tight text-fg">{name(player)}</h3>
               </div>
             </div>

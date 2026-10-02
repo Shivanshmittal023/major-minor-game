@@ -36,12 +36,12 @@ function play(evs: NewEvent[]): GameState {
 }
 
 describe('cards', () => {
-  it('parses shorthand and rejects 8s', () => {
+  it('parses shorthand (8s exist only for 6-player tables)', () => {
     expect(cardLabel(c('6s'))).toBe('6♠')
     expect(cardLabel(c('10h'))).toBe('10♥')
     expect(cardLabel(c('th'))).toBe('10♥')
     expect(cardLabel(c('QD'))).toBe('Q♦')
-    expect(parseCard('8s')).toBeNull()
+    expect(parseCard('8s')).toBe(48)
     expect(parseCard('1s')).toBeNull()
     expect(parseCard('zz')).toBeNull()
   })
@@ -208,5 +208,12 @@ describe('data integrity', () => {
     const b = makeEvent({ kind: 'fact', player: 1, card: 0, has: false })
     expect(a.id).not.toBe(b.id)
     expect(setOf(0)).toBe(0)
+  })
+})
+
+describe('8-player tables have no 8s or Jokers', () => {
+  it('rejects asking for an 8 at an 8-player table', () => {
+    const r = tryAddEvent(setup, [], { kind: 'ask', requester: 1, target: 2, card: 48, success: false })
+    expect(r.ok).toBe(false)
   })
 })

@@ -108,7 +108,7 @@ export function recommendMoves(
       if (tl.myHand.has(card)) continue
       const ck = kn.cards[card]
       if (ck.status === 'out') continue
-      for (let t = 0; t < 8; t++) {
+      for (let t = 0; t < setup.players.length; t++) {
         if (t === me || tl.handCounts[t] === 0) continue
         if (teamOf(t) === myTeam) continue // asking a teammate never moves a card to the team
         candidates++

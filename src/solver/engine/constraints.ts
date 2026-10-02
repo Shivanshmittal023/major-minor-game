@@ -1,6 +1,6 @@
-import { cardLabel, cardsOfSet, NUM_CARDS, setOf, type CardId } from './cards'
+import { cardLabel, cardsOfSet, setOf, type CardId } from './cards'
 import type { Timeline } from './history'
-import { HAND_SIZE, NUM_PLAYERS, type GameEvent, type GameSetup, type PlayerId } from './types'
+import { modeOf, type GameEvent, type GameSetup, type PlayerId } from './types'
 import type { Clause, Problem } from './solver'
 
 /**
@@ -32,6 +32,10 @@ const VAR = -2
 export function buildProblem(setup: GameSetup, events: GameEvent[], tl: Timeline): BuiltProblem {
   const { me } = setup
   const name = (p: PlayerId) => (p === me ? 'You' : setup.players[p])
+  const mode = modeOf(setup)
+  const NUM_CARDS = mode.cards
+  const NUM_PLAYERS = mode.players
+  const HAND_SIZE = mode.handSize
   const initialFixed = new Int8Array(NUM_CARDS).fill(VAR)
   const mine = new Set(setup.myCards)
   for (let c = 0; c < NUM_CARDS; c++) {

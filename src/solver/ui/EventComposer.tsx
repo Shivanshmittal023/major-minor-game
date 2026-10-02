@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { cardLabel, cardsOfSet, isMajorSet, parseCard, SET_DISPLAY_ORDER, setLabel, setOf, SUIT_SYMBOL, suitOfSet, type CardId, type SetId } from '../engine/cards'
-import { playersOfTeam, teamLabel, teamOf, type PlayerId, type TeamId } from '../engine/types'
+import { cardLabel, cardsOfSet, parseCard, setLabel, type CardId, type SetId } from '../engine/cards'
+import { isRedSet, setGlyph, setKind } from '../engine/cards'
+import { playersOfTeam, teamLabel, teamOf, type PlayerId, type TeamId, seatsOf, setsOf } from '../engine/types'
+import { canAsk, cardAllowed as isAllowed } from './asks'
 import { CardChip } from './CardChip'
 import { useCtx } from './context'
 import { pct } from './format'
@@ -33,7 +35,7 @@ export function EventComposer() {
 
   return (
     <section className="surface relative rounded-xl">
-      <header className="flex min-h-12 items-center justify-between gap-4 border-b border-white/[0.05] px-5 py-2.5">
+      <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/[0.05] px-4 py-2.5 sm:px-5">
         <div>
           <div className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Input</div>
           <div className="flex items-baseline gap-2.5">
@@ -45,13 +47,13 @@ export function EventComposer() {
           value={mode}
           onChange={setMode}
           options={[
-            { value: 'ask', label: <>Card request <Kbd>A</Kbd></> },
-            { value: 'declare', label: <>Lay down set <Kbd>D</Kbd></> },
-            { value: 'fact', label: <>Observation <Kbd>F</Kbd></> },
+            { value: 'ask', label: <><span className="sm:hidden">Ask</span><span className="hidden sm:inline">Card request</span> <span className="hidden sm:inline-flex"><Kbd>A</Kbd></span></> },
+            { value: 'declare', label: <><span className="sm:hidden">Lay down</span><span className="hidden sm:inline">Lay down set</span> <span className="hidden sm:inline-flex"><Kbd>D</Kbd></span></> },
+            { value: 'fact', label: <><span className="sm:hidden">Fact</span><span className="hidden sm:inline">Observation</span> <span className="hidden sm:inline-flex"><Kbd>F</Kbd></span></> },
           ]}
         />
       </header>
-      <div className="p-5">
+      <div className="p-4 sm:p-5">
         {mode === 'ask' && <AskForm />}
         {mode === 'declare' && <DeclareForm key={composerRequest?.nonce ?? 0} initialSet={composerRequest?.set} onDone={() => setMode('ask')} />}
         {mode === 'fact' && <FactForm onDone={() => setMode('ask')} />}
@@ -91,19 +93,20 @@ function PlayerPill({ p, selected, onClick, disabled, hint }: { p: PlayerId; sel
   )
 }
 
-function CardGrid({ selected, onPick, allowed }: { selected: CardId | null; onPick: (c: CardId) => void; allowed: (c: CardId) => boolean }) {
+export function CardGrid({ selected, onPick, allowed, onlyAllowed = false }: { selected: CardId | null; onPick: (c: CardId) => void; allowed: (c: CardId) => boolean; onlyAllowed?: boolean }) {
   const { state } = useCtx()
   const sets = state.knowledge.sets
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 2xl:grid-cols-4">
-      {SET_DISPLAY_ORDER.map((s) => {
-        const red = suitOfSet(s) === 'H' || suitOfSet(s) === 'D'
+    <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-2 2xl:grid-cols-4">
+      {setsOf(state.setup).map((s) => {
+        const red = isRedSet(s)
         const head = (
           <div className="mb-1 flex items-center gap-1 text-[11px] text-fg-3">
-            <span className={red ? 'text-rose' : 'text-fg-2'}>{SUIT_SYMBOL[suitOfSet(s)]}</span>
-            {isMajorSet(s) ? 'Major' : 'Minor'}
+            <span className={red ? 'text-rose' : 'text-fg-2'}>{setGlyph(s)}</span>
+            {setKind(s)}
           </div>
         )
+        if (onlyAllowed && !cardsOfSet(s).some(allowed)) return null
         // Laid-down sets are off the table: keep their slot so the grid never reflows mid-game.
         if (sets[s].laidDownBy !== null)
           return (
@@ -117,7 +120,7 @@ function CardGrid({ selected, onPick, allowed }: { selected: CardId | null; onPi
         return (
           <div key={s}>
             {head}
-            <div className="flex gap-1">
+            <div className="flex flex-wrap gap-1">
               {cardsOfSet(s).map((c) => (
                 <CardChip key={c} card={c} size="sm" variant="token" selected={selected === c} disabled={!allowed(c)} onClick={() => onPick(c)} />
               ))}
@@ -183,18 +186,8 @@ function AskForm() {
   const cmdRef = useRef<HTMLInputElement>(null)
   const requester = reqOverride ?? tl.nextTurn
 
-  const canTarget = (p: PlayerId) =>
-    p !== requester && tl.handCounts[p] > 0 && teamOf(p) !== teamOf(requester) // only opponents can be asked
-
-  /** Could `requester` legally ask for `c`, given everything known? */
-  const cardAllowed = (c: CardId): boolean => {
-    const ck = kn.cards[c]
-    if (ck.status === 'out') return false
-    if (ck.owner === requester) return false
-    const others = cardsOfSet(setOf(c)).filter((x) => x !== c)
-    if (requester === setup.me) return others.some((x) => tl.myHand.has(x))
-    return others.some((x) => kn.cards[x].possible.includes(requester))
-  }
+  const canTarget = (p: PlayerId) => canAsk(state, requester, p)
+  const cardAllowed = (c: CardId) => isAllowed(state, requester, c)
 
   const reset = () => {
     setReqOverride(null)
@@ -275,7 +268,7 @@ function AskForm() {
 
   return (
     <div className="space-y-5">
-      <div className="flex h-11 items-center gap-3 rounded-lg border border-white/[0.08] bg-black/30 px-3.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)] transition-colors focus-within:border-champagne/45">
+      <div className="hidden h-11 items-center gap-3 rounded-lg border border-white/[0.08] bg-black/30 px-3.5 md:flex shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)] transition-colors focus-within:border-champagne/45">
         <span className="font-mono text-sm text-champagne/70">›</span>
         <input
           ref={cmdRef}
@@ -293,7 +286,7 @@ function AskForm() {
           <div>
             <FieldLabel step={1}>Asker</FieldLabel>
             <div className="flex flex-wrap gap-1.5">
-              {[0, 1, 2, 3, 4, 5, 6, 7].map((p) => (
+              {seatsOf(state.setup).map((p) => (
                 <PlayerPill key={p} p={p} selected={p === requester} onClick={() => pickRequester(p)} disabled={tl.handCounts[p] === 0} hint={p === tl.nextTurn ? 'Whose turn it is by the rules' : undefined} />
               ))}
             </div>
@@ -301,7 +294,7 @@ function AskForm() {
           <div>
             <FieldLabel step={2}>Asked</FieldLabel>
             <div className="flex flex-wrap gap-1.5">
-              {[0, 1, 2, 3, 4, 5, 6, 7]
+              {seatsOf(state.setup)
                 .filter((p) => p !== requester)
                 .map((p) => (
                   <PlayerPill key={p} p={p} selected={p === target} onClick={() => setTarget(p)} disabled={!canTarget(p)} />
@@ -342,10 +335,13 @@ function AskForm() {
             </span>
           </span>
         ) : (
-          <span className="flex flex-wrap items-center gap-1.5 text-fg-4">
+          <>
+          <span className="text-fg-4 md:hidden">Pick the asker, who was asked, the card, then the outcome — or tap a seat on the table.</span>
+          <span className="hidden flex-wrap items-center gap-1.5 text-fg-4 md:flex">
             <Kbd>1–8</Kbd> asked <span className="mx-1 text-fg-4/50">·</span> <Kbd>⇧1–8</Kbd> asker <span className="mx-1 text-fg-4/50">·</span> <Kbd>Y</Kbd>
             <Kbd>N</Kbd> outcome <span className="mx-1 text-fg-4/50">·</span> <Kbd>⌘Z</Kbd> undo
           </span>
+          </>
         )}
       </div>
     </div>
@@ -359,11 +355,11 @@ function AskForm() {
 function DeclareForm({ onDone, initialSet }: { onDone: () => void; initialSet?: SetId }) {
   const { state, api, name } = useCtx()
   const kn = state.knowledge
-  const firstOpen = SET_DISPLAY_ORDER.find((s) => kn.sets[s].laidDownBy === null) ?? 0
+  const firstOpen = setsOf(state.setup).find((s) => kn.sets[s].laidDownBy === null) ?? 0
   const [set, setSet] = useState<SetId>(
     initialSet !== undefined && kn.sets[initialSet].laidDownBy === null
       ? initialSet
-      : (SET_DISPLAY_ORDER.find((s) => kn.sets[s].heldBy !== null && kn.sets[s].laidDownBy === null) ?? firstOpen),
+      : (setsOf(state.setup).find((s) => kn.sets[s].heldBy !== null && kn.sets[s].laidDownBy === null) ?? firstOpen),
   )
   const suggestedTeam = (s: SetId): TeamId => {
     const sk = kn.sets[s]
@@ -402,8 +398,8 @@ function DeclareForm({ onDone, initialSet }: { onDone: () => void; initialSet?: 
           <div>
             <FieldLabel step={1}>Set</FieldLabel>
             <div className="flex flex-wrap gap-1.5">
-              {SET_DISPLAY_ORDER.map((s) => {
-                const red = suitOfSet(s) === 'H' || suitOfSet(s) === 'D'
+              {setsOf(state.setup).map((s) => {
+                const red = isRedSet(s)
                 return (
                   <button
                     key={s}
@@ -418,8 +414,8 @@ function DeclareForm({ onDone, initialSet }: { onDone: () => void; initialSet?: 
                     } disabled:opacity-25`}
                     title={kn.sets[s].heldBy !== null ? 'Proven to be held entirely by one team' : undefined}
                   >
-                    <span className={red ? 'text-rose' : 'text-fg'}>{SUIT_SYMBOL[suitOfSet(s)]}</span>
-                    {isMajorSet(s) ? 'Major' : 'Minor'}
+                    <span className={red ? 'text-rose' : 'text-fg'}>{setGlyph(s)}</span>
+                    {setKind(s)}
                     {kn.sets[s].heldBy !== null && <span className="h-1 w-1 rounded-full bg-champagne" />}
                   </button>
                 )
@@ -447,7 +443,7 @@ function DeclareForm({ onDone, initialSet }: { onDone: () => void; initialSet?: 
                   onChange={(e) => setHolders((h) => h.map((x, j) => (j === i ? +e.target.value : x)))}
                 >
                   <option value={-1}>Who held it?</option>
-                  {playersOfTeam(team).map((p) => (
+                  {playersOfTeam(team, state.setup.players.length).map((p) => (
                     <option key={p} value={p} disabled={!kn.cards[c].possible.includes(p)}>
                       {name(p)}
                       {!kn.cards[c].possible.includes(p) ? ' (impossible)' : ''}
@@ -481,7 +477,7 @@ function DeclareForm({ onDone, initialSet }: { onDone: () => void; initialSet?: 
 
 function FactForm({ onDone }: { onDone: () => void }) {
   const { state, api, name } = useCtx()
-  const others = [0, 1, 2, 3, 4, 5, 6, 7].filter((p) => p !== state.setup.me)
+  const others = seatsOf(state.setup).filter((p) => p !== state.setup.me)
   const [player, setPlayer] = useState<PlayerId>(others[0])
   const [card, setCard] = useState<CardId | null>(null)
   const [has, setHas] = useState(true)

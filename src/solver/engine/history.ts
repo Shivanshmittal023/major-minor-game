@@ -1,5 +1,5 @@
-import { cardLabel, cardsOfSet, NUM_CARDS, NUM_SETS, setLabel, setOf, type CardId } from './cards'
-import { HAND_SIZE, NUM_PLAYERS, teamOf, type GameEvent, type GameSetup, type PlayerId, type TeamId } from './types'
+import { cardLabel, cardsOfSet, setLabel, setOf, type CardId } from './cards'
+import { modeOf, teamOf, type GameEvent, type GameSetup, type PlayerId, type TeamId } from './types'
 
 /**
  * Replays the event log and records every card movement.
@@ -39,16 +39,17 @@ export class EventError extends Error {
 
 export function validateSetup(setup: GameSetup): string[] {
   const errors: string[] = []
-  if (setup.players.length !== NUM_PLAYERS) errors.push('There must be exactly 8 players.')
+  const mode = modeOf(setup)
+  if (setup.players.length !== mode.players) errors.push(`There must be exactly ${mode.players} players.`)
   setup.players.forEach((n, i) => {
     if (!n.trim()) errors.push(`Player ${i + 1} needs a name.`)
   })
   const names = setup.players.map((n) => n.trim().toLowerCase()).filter(Boolean)
   if (new Set(names).size !== names.length) errors.push('Player names must be unique.')
-  if (setup.me < 0 || setup.me >= NUM_PLAYERS) errors.push('Select which player you are.')
-  if (setup.myCards.length !== HAND_SIZE) errors.push(`Select exactly ${HAND_SIZE} starting cards (you have ${setup.myCards.length}).`)
+  if (setup.me < 0 || setup.me >= mode.players) errors.push('Select which player you are.')
+  if (setup.myCards.length !== mode.handSize) errors.push(`Select exactly ${mode.handSize} starting cards (you have ${setup.myCards.length}).`)
   if (new Set(setup.myCards).size !== setup.myCards.length) errors.push('Duplicate cards selected.')
-  if (setup.myCards.some((c) => !Number.isInteger(c) || c < 0 || c >= NUM_CARDS)) errors.push('Invalid card selected.')
+  if (setup.myCards.some((c) => !Number.isInteger(c) || c < 0 || c >= mode.cards)) errors.push('Invalid card selected.')
   return errors
 }
 
@@ -63,12 +64,15 @@ function trackedLocation(card: CardId, moves: Move[][], myHand: Set<CardId>, me:
 export function replay(setup: GameSetup, events: GameEvent[]): Timeline {
   const { me, players } = setup
   const name = (p: PlayerId) => (p === me ? 'You' : players[p])
-  const moves: Move[][] = Array.from({ length: NUM_CARDS }, () => [])
-  const handCounts = new Array(NUM_PLAYERS).fill(HAND_SIZE)
+  const mode = modeOf(setup)
+  const N = mode.cards
+  const P = mode.players
+  const moves: Move[][] = Array.from({ length: N }, () => [])
+  const handCounts = new Array(P).fill(mode.handSize)
   const handCountsBefore: number[][] = []
   const myHandBefore: Set<CardId>[] = []
   const myHand = new Set(setup.myCards)
-  const laidDownBy: (TeamId | null)[] = new Array(NUM_SETS).fill(null)
+  const laidDownBy: (TeamId | null)[] = new Array(Math.max(...mode.sets) + 1).fill(null)
   let nextTurn = setup.firstTurn
 
   const move = (card: CardId, from: PlayerId, to: PlayerId | typeof OUT, t: number) => {
@@ -85,12 +89,12 @@ export function replay(setup: GameSetup, events: GameEvent[]): Timeline {
     const fail = (msg: string): never => {
       throw new EventError(msg, t)
     }
-    const validPlayer = (p: number) => Number.isInteger(p) && p >= 0 && p < NUM_PLAYERS
+    const validPlayer = (p: number) => Number.isInteger(p) && p >= 0 && p < P
 
     if (ev.kind === 'ask') {
       const { requester: a, target: b, card } = ev
       if (!validPlayer(a) || !validPlayer(b)) fail('Unknown player.')
-      if (!Number.isInteger(card) || card < 0 || card >= NUM_CARDS) fail('Unknown card.')
+      if (!Number.isInteger(card) || card < 0 || card >= N) fail('Unknown card.')
       if (a === b) fail('A player cannot ask themselves.')
       if (teamOf(a) === teamOf(b)) fail(`${name(a)} and ${name(b)} are teammates — players can only ask opponents.`)
       const set = setOf(card)
@@ -117,11 +121,11 @@ export function replay(setup: GameSetup, events: GameEvent[]): Timeline {
       }
     } else if (ev.kind === 'declare') {
       const { set, team, holders } = ev
-      if (!Number.isInteger(set) || set < 0 || set >= NUM_SETS) fail('Unknown set.')
+      if (!Number.isInteger(set) || !mode.sets.includes(set)) fail('Unknown set.')
       if (laidDownBy[set] !== null) fail(`${setLabel(set)} was already laid down.`)
       if (holders.length !== 6) fail('Every card of the set needs a holder.')
       const cards = cardsOfSet(set)
-      const laying = new Array(NUM_PLAYERS).fill(0)
+      const laying = new Array(P).fill(0)
       holders.forEach((h, i) => {
         if (!validPlayer(h)) fail(`Choose who held ${cardLabel(cards[i])}.`)
         if (teamOf(h) !== team) fail(`${name(h)} is not on the declaring team.`)

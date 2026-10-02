@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react'
-import { cardsOfSet, isMajorSet, SET_DISPLAY_ORDER, SUIT_SYMBOL, suitOfSet, type CardId } from '../engine/cards'
+import { cardsOfSet, isRedSet, setGlyph, setKind, type CardId } from '../engine/cards'
 import { validateSetup } from '../engine/history'
-import { HAND_SIZE, teamOf, type GameSetup } from '../engine/types'
+import { teamOf, type GameSetup } from '../engine/types'
+import { DEFAULT_TEAM_NAMES, MODES, TEAM_NAME_MAX, type TableSize } from '../../../shared/rules'
 import { CardChip } from './CardChip'
 import { TEAM_STYLE } from './context'
 import { BrandMark } from './Dashboard'
 import { Avatar, Button, TeamDot } from './kit'
 
 const LAST_SETUP_KEY = 'major-minor-assistant/last-setup'
+const SAMPLE = ['Asha', 'Rahul', 'Amit', 'Meera', 'Priya', 'Dev', 'Sara', 'Kiran']
 
 function loadLast(): GameSetup | null {
   try {
@@ -20,33 +22,49 @@ function loadLast(): GameSetup | null {
 
 function Step({ n, title, meta, children }: { n: number; title: string; meta?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="surface rounded-xl">
-      <header className="flex min-h-12 items-center justify-between border-b border-white/[0.05] px-5 py-2.5">
+    <section className="surface min-w-0 rounded-xl">
+      <header className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-white/[0.05] px-4 py-2.5 sm:px-5">
         <div className="flex items-center gap-3">
           <span className="flex h-6 w-6 items-center justify-center rounded-full border border-champagne/40 font-mono text-[11px] text-champagne">{n}</span>
           <h2 className="text-[13px] font-semibold text-fg">{title}</h2>
         </div>
         {meta}
       </header>
-      <div className="p-5">{children}</div>
+      <div className="p-4 sm:p-5">{children}</div>
     </section>
   )
 }
 
 export function SetupScreen({ onStart }: { onStart: (s: GameSetup) => string | null }) {
   const last = useMemo(loadLast, [])
-  const [players, setPlayers] = useState<string[]>(last?.players ?? Array(8).fill(''))
-  const [me, setMe] = useState<number>(last?.me ?? 0)
+  const [size, setSize] = useState<TableSize>(last?.size ?? 8)
+  const [names, setNames] = useState<string[]>(() => {
+    const prev = last?.players ?? []
+    return Array.from({ length: 8 }, (_, i) => prev[i] ?? '')
+  })
+  const [me, setMe] = useState<number>(Math.min(last?.me ?? 0, (last?.size ?? 8) - 1))
   const [cards, setCards] = useState<CardId[]>([])
   const [firstTurn, setFirstTurn] = useState<number>(0)
+  const [teamNames, setTeamNames] = useState<[string, string]>(last?.teamNames ?? [DEFAULT_TEAM_NAMES[0], DEFAULT_TEAM_NAMES[1]])
   const [tried, setTried] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
 
-  const setup: GameSetup = { players: players.map((p) => p.trim()), me, myCards: cards, firstTurn }
+  const mode = MODES[size]
+  const players = names.slice(0, size)
+  const tn: [string, string] = [teamNames[0].trim() || DEFAULT_TEAM_NAMES[0], teamNames[1].trim() || DEFAULT_TEAM_NAMES[1]]
+  const setup: GameSetup = { size, players: players.map((p) => p.trim()), me, myCards: cards, firstTurn: Math.min(firstTurn, size - 1), teamNames: tn }
   const errors = validateSetup(setup)
+  if (tn[0].toLowerCase() === tn[1].toLowerCase()) errors.push('The two teams need different names.')
 
+  const changeSize = (n: TableSize) => {
+    setSize(n)
+    setMe((m) => Math.min(m, n - 1))
+    setFirstTurn((f) => Math.min(f, n - 1))
+    // Cards that don't exist at the new size (8s & Jokers at 8 players) or exceed the hand size are dropped.
+    setCards((cs) => cs.filter((c) => c < MODES[n].cards).slice(0, MODES[n].handSize))
+  }
   const toggle = (c: CardId) =>
-    setCards((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : cs.length >= HAND_SIZE ? cs : [...cs, c]))
+    setCards((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : cs.length >= mode.handSize ? cs : [...cs, c]))
 
   const start = () => {
     setTried(true)
@@ -61,8 +79,7 @@ export function SetupScreen({ onStart }: { onStart: (s: GameSetup) => string | n
       }
   }
 
-  const label = (i: number) => players[i].trim() || `P${i + 1}`
-
+  const label = (i: number) => players[i]?.trim() || `P${i + 1}`
   const seat = (i: number) => {
     const t = TEAM_STYLE[teamOf(i)]
     return (
@@ -76,13 +93,12 @@ export function SetupScreen({ onStart }: { onStart: (s: GameSetup) => string | n
           {i + 1}
         </span>
         <input
-          className="min-w-0 flex-1 bg-transparent text-[13px] text-fg placeholder:text-fg-4 focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent text-[14px] text-fg placeholder:text-fg-4 focus:outline-none"
           placeholder={`Player ${i + 1}`}
-          value={players[i]}
-          autoFocus={i === 0}
-          onChange={(e) => setPlayers((ps) => ps.map((p, j) => (j === i ? e.target.value : p)))}
+          value={names[i]}
+          onChange={(e) => setNames((ps) => ps.map((p, j) => (j === i ? e.target.value : p)))}
         />
-        <label className={`flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] ${me === i ? 'text-champagne' : 'text-fg-4 hover:text-fg-2'}`}>
+        <label className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] ${me === i ? 'text-champagne' : 'text-fg-4'}`}>
           <input type="radio" name="me" checked={me === i} onChange={() => setMe(i)} className="accent-[#e6d2a2]" />
           Me
         </label>
@@ -90,33 +106,33 @@ export function SetupScreen({ onStart }: { onStart: (s: GameSetup) => string | n
     )
   }
 
-  const sorted = SET_DISPLAY_ORDER.flatMap((s) => cardsOfSet(s)).filter((c) => cards.includes(c))
+  const sorted = mode.sets.flatMap((s) => cardsOfSet(s)).filter((c) => cards.includes(c))
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       <header className="border-b border-white/[0.06]">
-        <div className="mx-auto flex h-[68px] max-w-6xl items-center justify-between px-6">
+        <div className="mx-auto flex h-[64px] max-w-6xl items-center justify-between px-4 sm:px-6">
           <BrandMark />
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-fg-4">New game</span>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 pb-12 pt-10">
-        <div className="mb-8 flex items-end justify-between gap-8">
-          <div>
-            <h1 className="text-display text-[56px] leading-[0.95] text-fg">
+      <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 sm:pt-10">
+        <div className="mb-6 flex items-end justify-between gap-8 sm:mb-8">
+          <div className="min-w-0">
+            <h1 className="text-display text-[44px] leading-[0.95] text-fg sm:text-[56px]">
               Set the <em className="text-champagne">table.</em>
             </h1>
-            <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-fg-2">
-              Seat the eight players and pick your six cards. From there, every ask you record is turned into exact deductions about who holds what.
+            <p className="mt-3 max-w-lg text-[14px] leading-relaxed text-fg-2 sm:text-[15px]">
+              Seat the players and pick your {mode.handSize} cards. Every ask you record becomes exact deductions about who holds what.
             </p>
           </div>
           {/* live seating preview */}
           <div className="relative hidden h-[150px] w-[260px] shrink-0 lg:block">
             <div className="absolute left-1/2 top-1/2 h-[56%] w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-white/[0.07]" style={{ background: 'radial-gradient(ellipse at 50% 30%, #1b2130, #0b0d12)' }} />
             {players.map((_, i) => {
-              const k = (i - me + 8) % 8
-              const a = Math.PI / 2 + (k * Math.PI) / 4
+              const k = (i - me + size) % size
+              const a = Math.PI / 2 + (k * 2 * Math.PI) / size
               return (
                 <div key={i} className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5" style={{ left: `${50 + 44 * Math.cos(a)}%`, top: `${50 + 40 * Math.sin(a)}%` }}>
                   <Avatar name={me === i ? 'You' : label(i)} player={i} size={24} active={me === i} />
@@ -127,23 +143,58 @@ export function SetupScreen({ onStart }: { onStart: (s: GameSetup) => string | n
           </div>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid min-w-0 gap-5 lg:grid-cols-2">
           <Step
             n={1}
             title="Players and seating"
             meta={
-              <button type="button" className="text-xs text-fg-3 transition-colors hover:text-champagne" onClick={() => setPlayers(['Asha', 'Rahul', 'Amit', 'Meera', 'Priya', 'Dev', 'Sara', 'Kiran'])}>
+              <button type="button" className="text-xs text-fg-3 transition-colors hover:text-champagne" onClick={() => setNames(SAMPLE)}>
                 Fill sample names
               </button>
             }
           >
-            <div className="grid grid-cols-2 gap-4">
+            <div className="mb-4 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Table size">
+              {([8, 6] as TableSize[]).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  role="radio"
+                  aria-checked={size === n}
+                  onClick={() => changeSize(n)}
+                  className={`rounded-xl border p-2.5 text-left transition-all ${size === n ? 'border-champagne/50 bg-champagne/[0.07]' : 'border-white/[0.07] bg-black/20 hover:border-white/15'}`}
+                >
+                  <span className="flex items-baseline gap-1.5">
+                    <span className={`text-display text-[26px] leading-none ${size === n ? 'text-champagne' : 'text-fg'}`}>{n}</span>
+                    <span className="text-[13px] text-fg">players</span>
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-fg-3">{MODES[n].detail}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {([0, 1] as const).map((t) => (
+                <label key={t} className="flex h-11 items-center gap-2.5 rounded-lg border border-white/[0.08] bg-black/25 px-3 focus-within:border-champagne/45" style={{ boxShadow: `inset 3px 0 0 ${TEAM_STYLE[t].hex}` }}>
+                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Team {t + 1}</span>
+                  <input
+                    value={teamNames[t]}
+                    maxLength={TEAM_NAME_MAX}
+                    placeholder={DEFAULT_TEAM_NAMES[t]}
+                    onChange={(e) => setTeamNames((x) => (t === 0 ? [e.target.value, x[1]] : [x[0], e.target.value]))}
+                    aria-label={`Team ${t + 1} name`}
+                    className={`text-display min-w-0 flex-1 bg-transparent text-lg leading-none placeholder:text-fg-4 focus:outline-none ${TEAM_STYLE[t].text}`}
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {[0, 1].map((t) => (
-                <div key={t}>
+                <div key={t} className="min-w-0">
                   <div className={`mb-2 flex items-center gap-2 text-xs font-medium ${TEAM_STYLE[t].text}`}>
-                    <TeamDot team={t as 0 | 1} /> {TEAM_STYLE[t].name} <span className="text-fg-4">· Team {t + 1}</span>
+                    <TeamDot team={t as 0 | 1} /> {tn[t]} <span className="text-fg-4">· Team {t + 1}</span>
                   </div>
-                  <div className="space-y-1.5">{[0, 1, 2, 3].map((k) => seat(k * 2 + t))}</div>
+                  <div className="space-y-1.5">{Array.from({ length: size / 2 }, (_, k) => seat(k * 2 + t))}</div>
                 </div>
               ))}
             </div>
@@ -157,30 +208,28 @@ export function SetupScreen({ onStart }: { onStart: (s: GameSetup) => string | n
                       <TeamDot player={i} />
                       {label(i)}
                     </span>
-                    {i < 7 && <span className="text-fg-4">›</span>}
+                    {i < size - 1 && <span className="text-fg-4">›</span>}
                   </span>
                 ))}
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/[0.05] pt-5">
-              <label className="block">
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">First turn</span>
-                <select
-                  className="mt-2 h-9 w-full rounded-lg border border-white/[0.08] bg-black/30 px-2.5 text-[13px] text-fg focus:border-champagne/45 focus:outline-none [&>option]:bg-ink-800"
-                  value={firstTurn}
-                  onChange={(e) => setFirstTurn(+e.target.value)}
-                >
-                  {players.map((p, i) => (
-                    <option key={i} value={i}>
-                      {p.trim() || `Player ${i + 1}`}
-                      {me === i ? ' (you)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="pt-6 text-xs text-fg-4">Only opponents can be asked, as in the house rules.</p>
-            </div>
+            <label className="mt-5 block border-t border-white/[0.05] pt-5">
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">First turn</span>
+              <select
+                className="mt-2 h-10 w-full rounded-lg border border-white/[0.08] bg-black/30 px-2.5 text-[14px] text-fg focus:border-champagne/45 focus:outline-none [&>option]:bg-ink-800"
+                value={Math.min(firstTurn, size - 1)}
+                onChange={(e) => setFirstTurn(+e.target.value)}
+              >
+                {players.map((p, i) => (
+                  <option key={i} value={i}>
+                    {p.trim() || `Player ${i + 1}`}
+                    {me === i ? ' (you)' : ''}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-2 block text-xs text-fg-4">Only opponents can be asked, as in the house rules.</span>
+            </label>
           </Step>
 
           <Step
@@ -189,50 +238,49 @@ export function SetupScreen({ onStart }: { onStart: (s: GameSetup) => string | n
             meta={
               <span className="flex items-center gap-2 text-xs">
                 <span className="flex gap-0.5">
-                  {Array.from({ length: HAND_SIZE }).map((_, i) => (
-                    <span key={i} className={`h-1.5 w-3 rounded-full transition-colors ${i < cards.length ? 'bg-champagne' : 'bg-white/10'}`} />
+                  {Array.from({ length: mode.handSize }).map((_, i) => (
+                    <span key={i} className={`h-1.5 w-2.5 rounded-full transition-colors ${i < cards.length ? 'bg-champagne' : 'bg-white/10'}`} />
                   ))}
                 </span>
-                <span className="font-mono text-fg-3">{cards.length}/{HAND_SIZE}</span>
+                <span className="font-mono text-fg-3">{cards.length}/{mode.handSize}</span>
               </span>
             }
           >
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-              {SET_DISPLAY_ORDER.map((s) => {
-                const red = suitOfSet(s) === 'H' || suitOfSet(s) === 'D'
-                return (
-                  <div key={s}>
-                    <div className="mb-1.5 flex items-center gap-1.5 text-xs text-fg-3">
-                      <span className={red ? 'text-rose' : 'text-fg-2'}>{SUIT_SYMBOL[suitOfSet(s)]}</span>
-                      {isMajorSet(s) ? 'Major' : 'Minor'}
-                    </div>
-                    <div className="flex gap-1">
-                      {cardsOfSet(s).map((c) => (
-                        <CardChip
-                          key={c}
-                          card={c}
-                          size="md"
-                          variant={cards.includes(c) ? 'known' : 'possible'}
-                          selected={cards.includes(c)}
-                          disabled={!cards.includes(c) && cards.length >= HAND_SIZE}
-                          onClick={() => toggle(c)}
-                          inspect={false}
-                        />
-                      ))}
-                    </div>
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+              {mode.sets.map((s) => (
+                <div key={s} className="min-w-0">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-xs text-fg-3">
+                    <span className={isRedSet(s) ? 'text-rose' : 'text-fg-2'}>{setGlyph(s)}</span>
+                    {setKind(s)}
                   </div>
-                )
-              })}
+                  <div className="flex flex-wrap gap-1.5">
+                    {cardsOfSet(s).map((c) => (
+                      <CardChip
+                        key={c}
+                        card={c}
+                        size="md"
+                        variant={cards.includes(c) ? 'known' : 'possible'}
+                        selected={cards.includes(c)}
+                        disabled={!cards.includes(c) && cards.length >= mode.handSize}
+                        onClick={() => toggle(c)}
+                        inspect={false}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="mt-5 flex h-[92px] items-end justify-center border-t border-white/[0.05] pt-4">
+            <div className="mt-5 flex min-h-[92px] items-end justify-center overflow-hidden border-t border-white/[0.05] pt-4">
               {sorted.length === 0 ? (
-                <span className="self-center text-xs text-fg-4">Your hand appears here · the 8s are removed (48 cards, 8 sets of six)</span>
+                <span className="self-center text-center text-xs text-fg-4">
+                  Your hand appears here · {size === 8 ? 'the 8s are removed (48 cards, 8 sets of six)' : '54 cards incl. 8s & Jokers, 9 sets of six'}
+                </span>
               ) : (
                 sorted.map((c, i) => {
                   const n = sorted.length
                   const angle = n > 1 ? -12 + (24 / (n - 1)) * i : 0
                   return (
-                    <div key={c} className="animate-rise" style={{ marginLeft: i ? -14 : 0, transform: `rotate(${angle}deg) translateY(${Math.abs(angle) * 0.3}px)`, transformOrigin: '50% 120%' }}>
+                    <div key={c} className="animate-rise" style={{ marginLeft: i ? (n > 6 ? -22 : -14) : 0, transform: `rotate(${angle}deg) translateY(${Math.abs(angle) * 0.3}px)`, transformOrigin: '50% 120%' }}>
                       <CardChip card={c} size="lg" variant="known" inspect={false} />
                     </div>
                   )
@@ -241,15 +289,16 @@ export function SetupScreen({ onStart }: { onStart: (s: GameSetup) => string | n
             </div>
           </Step>
         </div>
+      </main>
 
-        <div className="mt-6 flex items-center justify-end gap-4">
-          {tried && errors.length > 0 && <span className="text-[13px] text-rose">{errors[0]}</span>}
-          {startError && <span className="text-[13px] text-rose">{startError}</span>}
-          <Button variant="primary" size="xl" onClick={start} disabled={tried && errors.length > 0}>
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.06] bg-ink-950/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-end gap-3 px-4 py-3 sm:px-6" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+          <span className="min-w-0 flex-1 truncate text-[13px] text-rose">{tried && errors.length > 0 ? errors[0] : startError}</span>
+          <Button variant="primary" size="xl" onClick={start}>
             Start game <span aria-hidden>→</span>
           </Button>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

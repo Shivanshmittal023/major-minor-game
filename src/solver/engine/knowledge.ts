@@ -1,8 +1,8 @@
-import { ALL_SETS, cardsOfSet, NUM_CARDS, NUM_SETS, setOf, type CardId, type SetId } from './cards'
+import { cardsOfSet, setOf, type CardId, type SetId } from './cards'
 import type { BuiltProblem } from './constraints'
 import { OUT, type Timeline } from './history'
 import type { Analysis } from './solver'
-import { NUM_PLAYERS, teamOf, type GameSetup, type PlayerId, type TeamId } from './types'
+import { modeOf, teamOf, type GameSetup, type PlayerId, type TeamId } from './types'
 
 export type CardStatus = 'out' | 'known' | 'uncertain'
 
@@ -66,7 +66,11 @@ export interface Knowledge {
 
 export function deriveKnowledge(setup: GameSetup, tl: Timeline, built: BuiltProblem, an: Analysis): Knowledge {
   const { vars, varOf, exclusion, clauses } = built
-  const P = NUM_PLAYERS
+  const mode = modeOf(setup)
+  const P = mode.players
+  const NUM_CARDS = mode.cards
+  const NUM_SETS = Math.max(...mode.sets) + 1
+  const ALL_SETS: SetId[] = Array.from({ length: NUM_SETS }, (_, s) => s)
 
   const laidDownByCard = new Array<TeamId | null>(NUM_CARDS).fill(null)
   const currentFixed = new Int8Array(NUM_CARDS).fill(-2) // known current owner, OUT, or -2 unknown

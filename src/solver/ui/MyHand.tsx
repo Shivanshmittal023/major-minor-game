@@ -1,4 +1,6 @@
-import { cardsOfSet, isMajorSet, SET_DISPLAY_ORDER, SUIT_SYMBOL, suitOfSet } from '../engine/cards'
+import { cardsOfSet } from '../engine/cards'
+import { isRedSet, setGlyph, setKind } from '../engine/cards'
+import { setsOf } from '../engine/types'
 import { CardChip } from './CardChip'
 import { useCtx } from './context'
 import { Panel, useNewKeys } from './kit'
@@ -6,7 +8,7 @@ import { Panel, useNewKeys } from './kit'
 export function MyHand() {
   const { state } = useCtx()
   const hand = state.timeline.myHand
-  const groups = SET_DISPLAY_ORDER.map((s) => ({ s, cards: cardsOfSet(s).filter((c) => hand.has(c)) })).filter((g) => g.cards.length)
+  const groups = setsOf(state.setup).map((s) => ({ s, cards: cardsOfSet(s).filter((c) => hand.has(c)) })).filter((g) => g.cards.length)
   const ordered = groups.flatMap((g) => g.cards)
   const fresh = useNewKeys(ordered)
 
@@ -40,11 +42,11 @@ export function MyHand() {
           </div>
           <div className="flex flex-wrap gap-1.5 border-t border-white/[0.05] px-5 py-3">
             {groups.map(({ s, cards }) => {
-              const red = suitOfSet(s) === 'H' || suitOfSet(s) === 'D'
+              const red = isRedSet(s)
               return (
                 <span key={s} className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.025] px-2 text-xs text-fg-2">
-                  <span className={red ? 'text-rose' : 'text-fg'}>{SUIT_SYMBOL[suitOfSet(s)]}</span>
-                  {isMajorSet(s) ? 'Major' : 'Minor'}
+                  <span className={red ? 'text-rose' : 'text-fg'}>{setGlyph(s)}</span>
+                  {setKind(s)}
                   <span className="font-mono text-[10px] text-fg-4">{cards.length}/6</span>
                 </span>
               )
