@@ -32,6 +32,11 @@ redis.call('SET', KEYS[2], ARGV[3], 'EX', ARGV[4])
 redis.call('EXPIRE', KEYS[3], ARGV[4])
 return 1`
 
+const TOUCH = `
+redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
+redis.call('EXPIRE', KEYS[1], ARGV[3])
+return 1`
+
 class RedisStore implements Store {
   private r: Redis
   constructor(url: string, token: string) {
@@ -51,7 +56,8 @@ class RedisStore implements Store {
     return parsePresence(raw)
   }
   async touch(code: string, playerId: string, at: number) {
-    await this.r.hset(presKey(code), { [playerId]: String(at) })
+    // HSET + EXPIRE in one round trip, so presence can never outlive its room (e.g. a table created then abandoned).
+    await this.r.eval(TOUCH, [presKey(code)], [playerId, String(at), String(ROOM_TTL_S)])
   }
   async remove(code: string) {
     await this.r.del(key(code), verKey(code), presKey(code))
