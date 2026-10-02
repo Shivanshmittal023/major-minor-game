@@ -4,15 +4,17 @@ import type { GameState } from '../engine/game'
 import { teamLabel, teamOf, type TeamId, setsOf } from '../engine/types'
 import type { GameApi } from '../state/useGame'
 import { CardTooltip } from './CardTooltip'
-import { GameContext, setTeamNames, TEAM_STYLE, teamName, type Ctx } from './context'
+import { GameContext, setTeamNames, TEAM_STYLE, teamName, type Ctx, type ToolMode } from './context'
 import { EventComposer } from './EventComposer'
-import { HistoryPanel } from './History'
-import { Avatar, Button } from './kit'
+import { HistoryList } from './History'
+import { Avatar, Button, Segmented } from './kit'
 import { MyHand } from './MyHand'
 import { RecommendationPanel } from './Recommendation'
 import { RecordSheet } from './RecordSheet'
-import { SetTracker } from './SetTracker'
-import { PlayerDrawer, PlayersPanel, type KnowledgeTab } from './TableView'
+import { SetGrid } from './SetTracker'
+import { KnowledgeMatrix, PlayerDrawer, Roster, TablePanel } from './TableView'
+
+type DetailTab = 'sets' | 'players' | 'matrix' | 'history'
 
 export function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
@@ -33,7 +35,9 @@ export function Dashboard({ api, state }: { api: GameApi; state: GameState }) {
   const [hover, setHover] = useState<{ card: number; rect: DOMRect } | null>(null)
   const [drawer, setDrawer] = useState<number | null>(null)
   const [recording, setRecording] = useState<number | null>(null)
-  const [tab, setTab] = useState<KnowledgeTab>('table')
+  const [tab, setTab] = useState<DetailTab>('sets')
+  const [tool, setTool] = useState<ToolMode | null>(null)
+  const [askerPick, setAskerPick] = useState<number | null>(null)
   const { setup, knowledge: kn, timeline: tl } = state
   const myTeam = teamOf(setup.me)
   setTeamNames(setup.teamNames)
@@ -59,14 +63,22 @@ export function Dashboard({ api, state }: { api: GameApi; state: GameState }) {
       }
       // Some holders are only known at team level — ask who laid which card down.
       setComposerRequest({ mode: 'declare', set, nonce: Date.now() })
+      setTool('declare')
       api.toast('info', `Choose who held each card of ${setLabel(set)}`)
-      document.getElementById('record-turn')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     },
     [api, state],
   )
   const ctx: Ctx = useMemo(
-    () => ({ api, state, name, hoverCard, inspectPlayer: setDrawer, recordAsk: setRecording, layDown, composerRequest }),
-    [api, state, name, hoverCard, layDown, composerRequest],
+    () => ({
+      api, state, name, hoverCard, inspectPlayer: setDrawer, recordAsk: setRecording, layDown, composerRequest,
+      asker: askerPick !== null && tl.handCounts[askerPick] > 0 ? askerPick : tl.nextTurn,
+      pickAsker: setAskerPick,
+      openTool: (m: ToolMode) => {
+        if (m !== 'declare') setComposerRequest(null)
+        setTool(m)
+      },
+    }),
+    [api, state, name, hoverCard, layDown, composerRequest, askerPick, tl],
   )
 
   useEffect(() => {
@@ -77,19 +89,23 @@ export function Dashboard({ api, state }: { api: GameApi; state: GameState }) {
         e.preventDefault()
         if (e.shiftKey) api.redo()
         else api.undo()
-      } else if (!e.metaKey && !e.ctrlKey && !e.altKey) {
-        if (e.key === 't') setTab('table')
-        else if (e.key === 'r') setTab('roster')
-        else if (e.key === 'm') setTab('matrix')
-        else if (e.key === 'Escape') {
-          setDrawer(null)
-          setRecording(null)
-        }
+      } else if (!e.metaKey && !e.ctrlKey && !e.altKey && !tool && recording === null) {
+        if (e.key === '/' || e.key === 'a') {
+          e.preventDefault()
+          setTool('ask')
+        } else if (e.key === 'd') setTool('declare')
+        else if (e.key === 'f') setTool('fact')
+        else if (e.key === 'Escape') setDrawer(null)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [api])
+  }, [api, tool, recording])
+
+  // A recorded event resets "who's asking" back to whoever's turn it now is.
+  useEffect(() => {
+    setAskerPick(null)
+  }, [state.events.length])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -160,21 +176,37 @@ export function Dashboard({ api, state }: { api: GameApi; state: GameState }) {
       </header>
 
       <main className="mx-auto max-w-[1560px] space-y-4 px-3 py-4 sm:space-y-5 sm:px-6 sm:py-6">
-        <PlayersPanel tab={tab} onTab={setTab} />
-        <div id="record-turn" className="scroll-mt-24">
-          <EventComposer />
+        <div className="grid grid-cols-1 items-start gap-4 sm:gap-5 2xl:grid-cols-[minmax(0,1fr)_400px]">
+          <TablePanel />
+          <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2 2xl:grid-cols-1">
+            <RecommendationPanel />
+            <MyHand />
+          </div>
         </div>
-        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
-          <SetTracker />
-          <RecommendationPanel />
-        </div>
-        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-          <MyHand />
-          <HistoryPanel />
-        </div>
-        <footer className="flex flex-wrap items-center justify-between gap-2 pb-2 pt-4 text-[11px] text-fg-4">
+
+        <section className="surface overflow-hidden rounded-2xl">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.05] px-4 py-3 sm:px-5">
+            <h2 className="text-[13px] font-semibold text-fg">Details</h2>
+            <Segmented
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: 'sets', label: 'Sets' },
+                { value: 'players', label: 'Players' },
+                { value: 'matrix', label: 'Cards' },
+                { value: 'history', label: `History${state.events.length ? ` · ${state.events.length}` : ''}` },
+              ]}
+            />
+          </header>
+          {tab === 'sets' && <SetGrid />}
+          {tab === 'players' && <Roster />}
+          {tab === 'matrix' && <KnowledgeMatrix />}
+          {tab === 'history' && <HistoryList />}
+        </section>
+
+        <footer className="flex flex-wrap items-center justify-between gap-2 pb-2 pt-2 text-[11px] text-fg-4">
           <span className="hidden md:inline">
-            Shortcuts: <span className="font-mono">/</span> quick entry · <span className="font-mono">Y N</span> outcome · <span className="font-mono">T R M</span> views · <span className="font-mono">⌘Z</span> undo
+            Tap players on the table to record · <span className="font-mono">D</span> lay down · <span className="font-mono">F</span> observation · <span className="font-mono">/</span> manual entry · <span className="font-mono">⌘Z</span> undo
           </span>
           <span>Deductions are exact · percentages are estimates</span>
         </footer>
@@ -183,6 +215,7 @@ export function Dashboard({ api, state }: { api: GameApi; state: GameState }) {
       {hover && <CardTooltip card={hover.card} rect={hover.rect} />}
       {drawer !== null && <PlayerDrawer player={drawer} onClose={() => setDrawer(null)} />}
       {recording !== null && <RecordSheet target={recording} onClose={() => setRecording(null)} />}
+      {tool && <EventComposer key={`${tool}-${composerRequest?.nonce ?? 0}`} initial={tool} onClose={() => setTool(null)} />}
 
       <div className="pointer-events-none fixed inset-x-3 bottom-4 z-[60] flex flex-col items-center gap-2 sm:inset-x-auto sm:bottom-6 sm:right-6 sm:items-end" aria-live="polite">
         {api.toasts.map((t) =>

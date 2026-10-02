@@ -5,31 +5,25 @@ import { teamLabel, teamOf, type TeamId, setsOf } from '../engine/types'
 import { CardChip } from './CardChip'
 import { TEAM_STYLE, teamName, useCtx } from './context'
 import { pct } from './format'
-import { Badge, Button, Panel } from './kit'
+import { Badge, Button } from './kit'
 
-export function SetTracker() {
+/** All sets at a glance; lives in the details panel's "Sets" tab. */
+export function SetGrid() {
   const { state } = useCtx()
   const myTeam = teamOf(state.setup.me)
-  const done = state.knowledge.sets.filter((s) => s.completedBy !== null).length
   return (
-    <Panel
-      eyebrow="Sets"
-      title="Set progress"
-      meta={`${done} of 8 complete`}
-      actions={
-        <div className="flex items-center gap-3 text-[11px] text-fg-3">
-          <Legend team={myTeam} label="your team" />
-          <Legend team={(1 - myTeam) as TeamId} label="opponents" />
-          <span className="flex items-center gap-1.5"><span className="h-[3px] w-4 rounded-full" style={{ background: 'linear-gradient(90deg,#86aaf0 50%,#e79a5c 50%)' }} /> uncertain</span>
-        </div>
-      }
-    >
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <div className="p-4 sm:p-5">
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-3">
+        <Legend team={myTeam} label="your team" />
+        <Legend team={(1 - myTeam) as TeamId} label="opponents" />
+        <span className="flex items-center gap-1.5"><span className="h-[3px] w-4 rounded-full" style={{ background: 'linear-gradient(90deg,#86aaf0 50%,#e79a5c 50%)' }} /> uncertain</span>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {setsOf(state.setup).map((s) => (
           <SetTile key={s} s={s} />
         ))}
       </div>
-    </Panel>
+    </div>
   )
 }
 

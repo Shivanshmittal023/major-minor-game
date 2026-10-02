@@ -9,13 +9,20 @@ export interface Ctx {
   name: (p: number) => string
   hoverCard: (card: number | null, el?: HTMLElement | null) => void
   inspectPlayer: (p: number | null) => void
-  /** Open the tap-a-seat sheet to record an ask of `target`. */
+  /** Open the tap-a-seat sheet to record `asker`'s ask of `target`. */
   recordAsk: (target: number) => void
+  /** Who is asking on the table: whoever's turn it is, unless another seat was tapped. */
+  asker: number
+  pickAsker: (p: number | null) => void
+  /** Open a recording tool (lay down, observation, manual entry) in a sheet. */
+  openTool: (mode: ToolMode) => void
   /** Take a completed set off the table: records it directly when every holder is known, otherwise opens the lay-down form. */
   layDown: (set: number) => void
   /** Pending request for the composer to open a specific form (bumped nonce = new request). */
   composerRequest: { mode: 'declare'; set: number; nonce: number } | null
 }
+
+export type ToolMode = 'ask' | 'declare' | 'fact'
 
 export const GameContext = createContext<Ctx | null>(null)
 

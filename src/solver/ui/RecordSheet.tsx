@@ -14,10 +14,10 @@ import { Avatar, Button, Check, Cross } from './kit'
  * from the legal ones, then tap the outcome.
  */
 export function RecordSheet({ target, onClose }: { target: PlayerId; onClose: () => void }) {
-  const { state, api, name } = useCtx()
+  const { state, api, name, asker, inspectPlayer } = useCtx()
   const { setup, knowledge: kn, timeline: tl } = state
   const askers = seatsOf(setup).filter((p) => canAsk(state, p, target))
-  const [requester, setRequester] = useState<PlayerId>(askers.includes(tl.nextTurn) ? tl.nextTurn : (askers[0] ?? tl.nextTurn))
+  const [requester, setRequester] = useState<PlayerId>(askers.includes(asker) ? asker : askers.includes(tl.nextTurn) ? tl.nextTurn : (askers[0] ?? tl.nextTurn))
   const [card, setCard] = useState<CardId | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -49,7 +49,21 @@ export function RecordSheet({ target, onClose }: { target: PlayerId; onClose: ()
             <Avatar name={name(target)} player={target} size={34} />
             <div className="min-w-0 leading-tight">
               <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Record an ask of</div>
-              <div className="text-display truncate text-[24px] text-fg">{name(target)}</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-display truncate text-[24px] text-fg">{name(target)}</span>
+                {target !== setup.me && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose()
+                      inspectPlayer(target)
+                    }}
+                    className="text-xs text-fg-3 underline-offset-2 hover:text-champagne hover:underline"
+                  >
+                    details
+                  </button>
+                )}
+              </div>
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">

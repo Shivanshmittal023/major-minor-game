@@ -15,8 +15,9 @@ function isTyping(e: KeyboardEvent) {
   return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)
 }
 
-export function EventComposer() {
-  const [mode, setMode] = useState<Mode>('ask')
+/** Manual recording tools, shown in a sheet: full ask form (with typed entry), lay down a set, observation. */
+export function EventComposer({ initial = 'ask', onClose }: { initial?: Mode; onClose: () => void }) {
+  const [mode, setMode] = useState<Mode>(initial)
   const { state, composerRequest } = useCtx()
   useEffect(() => {
     if (composerRequest) setMode(composerRequest.mode)
@@ -28,16 +29,19 @@ export function EventComposer() {
       if (e.key === 'a') setMode('ask')
       else if (e.key === 'd') setMode('declare')
       else if (e.key === 'f') setMode('fact')
+      else if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [onClose])
 
   return (
-    <section className="surface relative rounded-xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 sm:items-center sm:p-6" onClick={onClose}>
+    <div className="animate-rise max-h-[90dvh] w-full max-w-[1100px] overflow-y-auto rounded-t-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+    <section className="surface-raised relative rounded-t-2xl sm:rounded-2xl">
       <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/[0.05] px-4 py-2.5 sm:px-5">
         <div>
-          <div className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Input</div>
+          <div className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Record manually</div>
           <div className="flex items-baseline gap-2.5">
             <h2 className="text-[13px] font-semibold text-fg">Record turn</h2>
             <span className="font-mono text-xs text-fg-3">T{state.events.length + 1}</span>
@@ -52,13 +56,18 @@ export function EventComposer() {
             { value: 'fact', label: <><span className="sm:hidden">Fact</span><span className="hidden sm:inline">Observation</span> <span className="hidden sm:inline-flex"><Kbd>F</Kbd></span></> },
           ]}
         />
+        <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close" className="ml-auto sm:ml-0">
+          <Cross />
+        </Button>
       </header>
       <div className="p-4 sm:p-5">
         {mode === 'ask' && <AskForm />}
-        {mode === 'declare' && <DeclareForm key={composerRequest?.nonce ?? 0} initialSet={composerRequest?.set} onDone={() => setMode('ask')} />}
-        {mode === 'fact' && <FactForm onDone={() => setMode('ask')} />}
+        {mode === 'declare' && <DeclareForm key={composerRequest?.nonce ?? 0} initialSet={composerRequest?.set} onDone={onClose} />}
+        {mode === 'fact' && <FactForm onDone={onClose} />}
       </div>
     </section>
+    </div>
+    </div>
   )
 }
 

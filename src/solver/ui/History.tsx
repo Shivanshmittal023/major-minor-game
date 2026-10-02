@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { useCtx } from './context'
 import { describeEvent } from './format'
-import { Button } from './kit'
 
-export function HistoryPanel() {
+/** The event log; lives in the details panel's "History" tab. */
+export function HistoryList() {
   const { state, api } = useCtx()
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -12,22 +12,9 @@ export function HistoryPanel() {
   }, [state.events.length])
 
   return (
-    <section className="surface flex h-full min-h-0 flex-col rounded-xl">
-      <header className="flex min-h-12 shrink-0 items-center justify-between border-b border-white/[0.05] px-5 py-2.5">
-        <div>
-          <div className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Log</div>
-          <div className="flex items-baseline gap-2.5">
-            <h2 className="text-[13px] font-semibold text-fg">Game history</h2>
-            <span className="text-xs text-fg-3">{state.events.length} events</span>
-          </div>
-        </div>
-        <div className="flex gap-1">
-          <Button size="sm" variant="ghost" disabled={!state.events.length} onClick={api.undo} title="Undo (⌘Z)">Undo</Button>
-          <Button size="sm" variant="ghost" disabled={!api.canRedo} onClick={api.redo} title="Redo (⇧⌘Z)">Redo</Button>
-        </div>
-      </header>
-      <div ref={scrollRef} className="max-h-[420px] min-h-0 flex-1 overflow-y-auto px-5 py-3">
-        {state.events.length === 0 && <p className="py-8 text-center text-[13px] text-fg-4">The log is empty. Record the first ask above.</p>}
+    <div>
+      <div ref={scrollRef} className="max-h-[520px] overflow-y-auto px-4 py-3 sm:px-5">
+        {state.events.length === 0 && <p className="py-8 text-center text-[13px] text-fg-4">The log is empty. Tap a player on the table to record the first ask.</p>}
         <ol className="relative">
           {state.events.length > 1 && <span className="absolute bottom-3 left-[11px] top-3 w-px bg-white/[0.06]" />}
           {state.events.map((ev, i) => {
@@ -60,6 +47,6 @@ export function HistoryPanel() {
           })}
         </ol>
       </div>
-    </section>
+    </div>
   )
 }
