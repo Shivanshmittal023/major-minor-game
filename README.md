@@ -26,7 +26,7 @@ Seats alternate teams in both modes. Card ids 0–47 are identical in both; the 
 - **Players sit as they join.** The moment every seat is filled and everyone is online, a **10-second countdown** starts on every screen, then the cards are dealt. Anyone can tap **Start now** to skip it. Unseating someone stops the countdown, and it restarts when the table fills again.
 - **Everyone** in the lobby can arrange the teams. Tap an empty seat to sit there, tap a player then a seat to move them, or use Auto-fill, Shuffle and Swap teams. Seats alternate teams.
 - Anyone can **rename the two teams** (default Tide / Ember). The colours stay the same.
-- **Bots:** anyone can tap **Fill with bots** to seat bots in every empty seat, so one person can play a whole table. Bots move on the server, one move every 15 seconds, so everyone can follow and remember the asks.
+- **Bots:** anyone can tap **Fill with bots** to seat bots in every empty seat, so one person can play a whole table. Bots move on the server, one move every 10 seconds, so everyone can follow and remember the asks.
   - Their brain (`server/ai/brain.ts`) is the Solver's deduction run from the bot's seat, using **only its own hand and public events**.
   - Each turn a bot works out who must, can and can't hold each card, then asks the opponent most likely to hold a card it needs. It declares as soon as it can prove all six holders.
   - Against random players they win essentially every game.
