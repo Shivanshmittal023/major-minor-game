@@ -44,7 +44,7 @@ export type LogEntry =
   | { id: number; t: number; kind: 'ask'; asker: number; target: number; card: CardId; success: boolean; next: number }
   /** claimed/actual: seat per card of the set (as named, and where each really was). `team` won the set. */
   | { id: number; t: number; kind: 'declare'; declarer: number; set: SetId; claimed: number[]; actual: number[]; correct: boolean; team: TeamId }
-  | { id: number; t: number; kind: 'skip'; from: number; to: number; reason: 'no-cards' | 'player' }
+  | { id: number; t: number; kind: 'skip'; from: number; to: number; reason: 'no-cards' | 'player' | 'away' }
   | { id: number; t: number; kind: 'end'; winner: TeamId | 'draw'; score: [number, number] }
 
 export interface SeatView {

@@ -3,5 +3,14 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/r/:code", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/r/:code",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/solver",
+      "destination": "/index.html"
+    }
+  ]
 }

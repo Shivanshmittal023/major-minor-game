@@ -26,7 +26,11 @@ Seats alternate teams in both modes. Card ids 0–47 are identical in both; the 
 - **Players sit as they join.** The moment every seat is filled and everyone is online, a **10-second countdown** starts on every screen, then the cards are dealt. Anyone can tap **Start now** to skip it. Unseating someone stops the countdown, and it restarts when the table fills again.
 - **Everyone** in the lobby can arrange the teams. Tap an empty seat to sit there, tap a player then a seat to move them, or use Auto-fill, Shuffle and Swap teams. Seats alternate teams.
 - Anyone can **rename the two teams** (default Tide / Ember). The colours stay the same.
-- **Practice bots:** anyone can tap **Fill with bots** to seat bots in every empty seat (seating themselves first), so one person can test a whole table. Bots move on the server, one move every ~2.5s. They ask fair random questions and only declare sets their team truly holds and they have a card of.
+- **Bots:** anyone can tap **Fill with bots** to seat bots in every empty seat, so one person can play a whole table. Bots move on the server, one move every ~2.5s.
+  - Their brain (`server/ai/brain.ts`) is the Solver's deduction run from the bot's seat, using **only its own hand and public events**.
+  - Each turn a bot works out who must, can and can't hold each card, then asks the opponent most likely to hold a card it needs. It declares as soon as it can prove all six holders.
+  - Against random players they win essentially every game.
+- **Auto-skip:** if a disconnected player's turn comes up, it's skipped automatically after 60 seconds.
 
 ## House rules (fixed, in `shared/rules.ts`)
 - After a **successful** ask, the **asker goes again**.
@@ -41,6 +45,9 @@ Seats alternate teams in both modes. Card ids 0–47 are identical in both; the 
   - Either way the cards are revealed, leave play, and the turn doesn't change.
 - A player with no cards is skipped.
 - The game ends when every set is declared. Most sets wins (a 4–4 draw is possible at 8 players; 9 sets can't tie).
+
+## The Solver (`/solver`)
+The in-person table assistant lives at **/solver** (code in `src/solver/`, loaded only when opened). It's a separate tool for physical games: you record what you see, and it deduces who holds what and suggests asks. It has no connection to online tables.
 
 ## Architecture
 ```

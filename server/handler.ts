@@ -1,5 +1,5 @@
 import type { ClientMsg } from '../shared/protocol.js'
-import { ActionError, addPlayer, autoStart, cleanName, etagFor, findByToken, maintain, newCode, newPlayer, newRoom, normCode, reduce, snapshotFor, type RoomData } from './room.js'
+import { ActionError, addPlayer, autoSkip, autoStart, cleanName, etagFor, findByToken, maintain, newCode, newPlayer, newRoom, normCode, reduce, snapshotFor, type RoomData } from './room.js'
 import { getStore } from './store.js'
 import { botDue, botStep, withBots } from './bots.js'
 import { isTableSize } from '../shared/rules.js'
@@ -75,6 +75,8 @@ export async function handleGet(req: Request): Promise<Response> {
     if (maintain(probe, presence, now)) ({ room, presence, now } = await mutate(code, (r, p, t) => maintain(r, { ...p, [me.id]: t }, t)))
     // Practice bots move lazily, one move per poll once the last move has played out on screen.
     if (botDue(room, now)) ({ room, presence, now } = await mutate(code, (r, _p, t) => botStep(r, t)))
+    // A disconnected player's turn moves on by itself after a minute.
+    if (autoSkip(structuredClone(room), presence, now)) ({ room, presence, now } = await mutate(code, (r, p, t) => autoSkip(r, withBots(r, { ...p, [me.id]: t }, t), t)))
     // Full table + everyone online → countdown → deal (also evaluated lazily on polls).
     if (autoStart(structuredClone(room), presence, now)) ({ room, presence, now } = await mutate(code, (r, p, t) => autoStart(r, withBots(r, { ...p, [me.id]: t }, t), t)))
     if (!room.players.some((p) => p.id === me.id)) return json({ error: 'You are no longer at this table.', fatal: true })

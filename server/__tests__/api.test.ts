@@ -412,3 +412,28 @@ describe('auto-start', () => {
     expect(me.last!.autoStart!.at).not.toBeNull()
   })
 })
+
+describe('auto-skip', () => {
+  it("skips a disconnected player's turn after a minute, but never an online player's", async () => {
+    const { host, all } = await table(6)
+    await host.post({ type: 'start' })
+    let room = (await store.load(host.code))!
+    const turn = room.game!.turn
+    const away = all.find((d) => d.id === room.seating[turn])!
+    const watcher = all.find((d) => d !== away)!
+    // Online player, long wait → no skip.
+    room.game!.log[room.game!.log.length - 1].t = Date.now() - 120_000
+    room.version++
+    await store.save(room, room.version - 1)
+    await away.poll()
+    await watcher.poll()
+    expect((await store.load(host.code))!.game!.turn).toBe(turn)
+    // Now they go silent → skipped on the next poll by anyone else.
+    await store.touch(host.code, away.id, Date.now() - 60_000)
+    await watcher.poll()
+    room = (await store.load(host.code))!
+    expect(room.game!.turn).not.toBe(turn)
+    const last = room.game!.log[room.game!.log.length - 1]
+    expect(last.kind === 'skip' && last.reason === 'away' && last.from === turn).toBe(true)
+  })
+})

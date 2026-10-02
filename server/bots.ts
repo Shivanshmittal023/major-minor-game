@@ -1,17 +1,14 @@
-import { randomInt } from 'node:crypto'
-import { cardsOfSet, setOf } from '../shared/cards.js'
-import { MODES, teamOfSeat } from '../shared/rules.js'
+import { chooseMove } from './ai/brain.js'
 import { ask, cardCount, declare, handOf } from './game.js'
 import { newPlayer, type Presence, type RoomData } from './room.js'
 
 /**
- * Practice bots, so one person can try a full table alone.
+ * Bots, so one person can play a full table alone.
  *
- * Bots live entirely on the server and act lazily: whenever any device polls,
- * if it's a bot's turn and the last move has had time to play out on screen,
- * that bot makes exactly one move. Asks are fair (random legal asks — no
- * peeking). To keep practice games moving, a bot declares a set only once its
- * team really holds all six, so bots never make a wrong declaration.
+ * Bots live on the server and act lazily: whenever any device polls, if it's a
+ * bot's turn and the last move has had time to play out on screen, that bot
+ * makes one move. Moves come from ai/brain.ts — the Solver's deduction run from
+ * the bot's seat using only its own hand and public events (no peeking).
  */
 
 const BOT_NAMES = ['Aria', 'Bodhi', 'Cleo', 'Dax', 'Esha', 'Finn', 'Gia', 'Hugo', 'Ivy', 'Jude']
@@ -20,8 +17,6 @@ let botDelayMs = 2500 // long enough for the ask banner, reveal and card flight
 export function setBotDelay(ms: number) {
   botDelayMs = ms
 }
-
-const pick = <T,>(xs: T[]): T => xs[randomInt(xs.length)]
 
 /** Seat a new bot in every empty seat. Returns how many were added. */
 export function fillWithBots(r: RoomData, now: number): number {
@@ -56,30 +51,22 @@ export function botDue(r: RoomData, now: number): boolean {
   return now - (last?.t ?? 0) >= botDelayMs
 }
 
-/** Make one bot move. Returns true if the room changed. */
+/** Make one bot move — chosen by the deduction brain from public information only. */
 export function botStep(r: RoomData, now: number): boolean {
   if (!botDue(r, now)) return false
   const g = r.game!
   const seat = g.turn
-  const team = teamOfSeat(seat)
-
-  // Declare a set the bot's team fully holds — only one the bot itself has a card of (same rule as people).
-  for (const s of MODES[g.size].sets) {
-    if (g.completed[s] !== null) continue
-    const owners = cardsOfSet(s).map((c) => g.owner[c])
-    if (owners.includes(seat) && owners.every((o) => o >= 0 && teamOfSeat(o) === team)) {
-      declare(g, seat, s, owners)
-      if (g.winner !== null) r.phase = 'finished'
-      return true
-    }
-  }
-
-  const hand = handOf(g, seat)
-  const opps = Array.from({ length: g.size }, (_, s) => s).filter((s) => teamOfSeat(s) !== team && cardCount(g, s) > 0)
-  if (!hand.length || !opps.length) return false
-  const set = setOf(pick(hand))
-  const want = cardsOfSet(set).filter((c) => g.owner[c] !== seat)
-  ask(g, seat, pick(opps), pick(want))
+  const move = chooseMove({
+    size: g.size,
+    me: seat,
+    hand: handOf(g, seat),
+    log: g.log,
+    cardCounts: Array.from({ length: g.size }, (_, p) => cardCount(g, p)),
+    completed: g.completed,
+  })
+  if (!move) return false
+  if (move.kind === 'declare') declare(g, seat, move.set, move.holders)
+  else ask(g, seat, move.target, move.card)
   if (g.winner !== null) r.phase = 'finished'
   return true
 }

@@ -30,7 +30,7 @@ export function AskPanel({ v, onPick, compact = false }: { v: View; onPick: (sea
         <div className="flex items-center gap-3">
           <Avatar name={cur.name} team={teamOfSeat(g.turn)} size={40} active />
           <div className="min-w-0 text-[13px] text-fg-3">
-            {cur.connected ? 'Their move. Keep track of who asked for what — there is no history to look back on.' : `${cur.name} has disconnected. Their seat is held for them.`}
+            {cur.connected ? 'Their move. Keep track of who asked for what — there is no history to look back on.' : `${cur.name} has disconnected. Their seat is held, and their turn is skipped automatically after a minute.`}
           </div>
         </div>
         {!cur.connected && (
@@ -93,7 +93,7 @@ function AskStrip({ v, onPick }: { v: View; onPick: (seat: number) => void }) {
       <div className="surface flex items-center gap-3 rounded-xl px-3.5 py-2.5">
         <Avatar name={cur.name} team={teamOfSeat(g.turn)} size={30} active />
         <div className="min-w-0 flex-1 text-[12px] leading-snug">
-          <div className="truncate text-fg">{cur.connected ? `${cur.name} is thinking…` : `${cur.name} disconnected`}</div>
+          <div className="truncate text-fg">{cur.connected ? `${cur.name} is thinking…` : `${cur.name} disconnected — auto-skip in a minute`}</div>
           <div className="truncate text-fg-4">Remember who asked for what — there's no history.</div>
         </div>
         {!cur.connected && (

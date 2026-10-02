@@ -291,6 +291,21 @@ export function autoStart(r: RoomData, presence: Presence, now: number): boolean
   return false
 }
 
+/** A disconnected player's turn is skipped automatically after this long, so a table never stalls. */
+export const AUTO_SKIP_MS = 60_000
+
+/** Lazily (on polls): if the player to move is offline and the turn has waited a minute, move on. */
+export function autoSkip(r: RoomData, presence: Presence, now: number): boolean {
+  const g = r.game
+  if (!g || r.phase !== 'playing' || g.winner !== null) return false
+  const p = r.players.find((x) => x.id === r.seating[g.turn])
+  if (!p || p.bot || isOnline(presence, p.id, now)) return false
+  const last = g.log[g.log.length - 1]
+  if (now - (last?.t ?? 0) < AUTO_SKIP_MS) return false
+  skipTurn(g, 'away')
+  return true
+}
+
 /** Housekeeping done lazily on reads: drop lobby guests who closed the tab long ago. */
 export function maintain(r: RoomData, presence: Presence, now: number): boolean {
   let changed = false

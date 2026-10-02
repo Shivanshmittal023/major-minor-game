@@ -110,6 +110,28 @@ export function Home() {
             </Button>
           </section>
         </div>
+
+        <a
+          href="/solver"
+          className="surface group mt-5 flex flex-col gap-4 rounded-xl p-5 transition-colors hover:border-champagne/30 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+        >
+          <div className="flex items-center gap-4">
+            <span className="relative h-12 w-10 shrink-0">
+              <span className="card-back absolute inset-0 rotate-[-8deg] rounded-[5px]" style={{ ['--back' as string]: '#4f3320' }} />
+              <span className="paper absolute inset-0 flex rotate-[5deg] items-center justify-center rounded-[5px] text-lg text-crimson">♥</span>
+            </span>
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Playing with real cards?</div>
+              <h2 className="text-display mt-0.5 text-[26px] leading-tight text-fg">The Solver</h2>
+              <p className="mt-0.5 max-w-xl text-[13px] text-fg-3">
+                A table assistant for in-person games: record what you see, and it deduces who holds which card and suggests your best ask. Separate from online tables.
+              </p>
+            </div>
+          </div>
+          <span className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-fg transition-colors group-hover:border-champagne/40 group-hover:text-champagne sm:self-auto">
+            Open the Solver <span aria-hidden>→</span>
+          </span>
+        </a>
       </main>
     </div>
   )
