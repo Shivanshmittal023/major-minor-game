@@ -10,8 +10,9 @@ import type { View } from './view'
  * Asking is seat-first: tap an opponent (at the table, or in this panel) →
  * see exactly the cards you may ask them for → tap one to ask.
  */
-export function AskPanel({ v, onPick }: { v: View; onPick: (seat: number) => void }) {
+export function AskPanel({ v, onPick, compact = false }: { v: View; onPick: (seat: number) => void; compact?: boolean }) {
   const { g } = v
+  if (compact) return <AskStrip v={v} onPick={onPick} />
 
   if (v.me === null)
     return (
@@ -77,6 +78,56 @@ export function AskPanel({ v, onPick }: { v: View; onPick: (seat: number) => voi
         <p className="mt-2 text-[11px] text-fg-4">Or tap a highlighted seat at the table.</p>
       </div>
     </section>
+  )
+}
+
+/** Phone version: one compact strip — whose move it is, or a swipeable row of opponents to ask. */
+function AskStrip({ v, onPick }: { v: View; onPick: (seat: number) => void }) {
+  const { g } = v
+  if (v.me === null)
+    return <p className="surface rounded-xl px-4 py-3 text-[12px] text-fg-3">You're watching — every public move shows on the table.</p>
+  if (v.snap.phase !== 'playing') return null
+  if (!v.myTurn) {
+    const cur = g.seats[g.turn]
+    return (
+      <div className="surface flex items-center gap-3 rounded-xl px-3.5 py-2.5">
+        <Avatar name={cur.name} team={teamOfSeat(g.turn)} size={30} active />
+        <div className="min-w-0 flex-1 text-[12px] leading-snug">
+          <div className="truncate text-fg">{cur.connected ? `${cur.name} is thinking…` : `${cur.name} disconnected`}</div>
+          <div className="truncate text-fg-4">Remember who asked for what — there's no history.</div>
+        </div>
+        {!cur.connected && v.snap.you.isHost && (
+          <Button size="sm" onClick={() => client.skipTurn()}>
+            Skip
+          </Button>
+        )}
+      </div>
+    )
+  }
+  const targets = g.seats.filter((s) => v.canTarget(s.seat))
+  if (!targets.length)
+    return <p className="surface rounded-xl border-champagne/30 px-4 py-3 text-[12px] text-fg-2">Nobody on the other team has cards — declare your remaining sets (button by your hand).</p>
+  return (
+    <div className="surface rounded-xl border-champagne/35 px-3 py-2.5">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[12px] font-semibold text-champagne">Your move — who do you ask?</span>
+        <span className="text-[10px] text-fg-4">or tap a seat</span>
+      </div>
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+        {targets.map((s) => (
+          <button
+            key={s.seat}
+            type="button"
+            onClick={() => onPick(s.seat)}
+            className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-white/[0.09] bg-white/[0.03] pl-1 pr-3 text-[13px] text-fg active:translate-y-px active:border-champagne/50"
+          >
+            <Avatar name={s.name} team={s.team} size={30} dim={!s.connected} />
+            {s.name}
+            <span className="font-mono text-[10px] text-fg-4">{s.cardCount}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 

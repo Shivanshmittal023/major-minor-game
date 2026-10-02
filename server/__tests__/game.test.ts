@@ -201,6 +201,13 @@ describe('declaring', () => {
     expect(g.completed[0]).toBe(1)
   })
 
+  it('only lets you declare a set you hold a card of', () => {
+    const g = minorSpadesWithTeam1()
+    g.owner[c('7s')] = 4 // now seat 6 (Team 1) holds no Minor ♠ at all
+    expect(() => declare(g, 6, 0, [0, 0, 2, 4, 4, 4])).toThrow(/hold a card of/)
+    expect(() => declare(g, 4, 0, [0, 0, 2, 4, 4, 4])).not.toThrow()
+  })
+
   it('rejects holders outside your team, incomplete claims and already-won sets', () => {
     const g = minorSpadesWithTeam1()
     expect(() => declare(g, 0, 0, [0, 0, 1, 4, 4, 6])).toThrow(/your team/)

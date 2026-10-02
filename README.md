@@ -23,7 +23,9 @@ Seats alternate teams in both modes. Card ids 0–47 are identical in both; the 
 
 ## Lobby
 - **Everyone** in the lobby can arrange the teams. Tap an empty seat to sit there, tap a player then a seat to move them, or use Auto-fill, Shuffle and Swap teams. Seats alternate teams.
+- Anyone can **rename the two teams** (default Tide / Ember). The colours stay the same.
 - The **host** starts the game (once every seat is filled and everyone is online) and can remove players from the lobby.
+- **Practice bots:** the host can tap **Fill with bots** to seat bots in every empty seat (seating themselves first), so one person can test a whole table. Bots move on the server, one move every ~2.5s. They ask fair random questions and only declare sets their team truly holds and they have a card of.
 
 ## House rules (fixed, in `shared/rules.ts`)
 - After a **successful** ask, the **asker goes again**.
@@ -32,7 +34,7 @@ Seats alternate teams in both modes. Card ids 0–47 are identical in both; the 
 - A **random** player takes the first turn. The deal is a Fisher–Yates shuffle using Node's `crypto.randomInt`, done on the server.
 - You must hold a card of a set to ask for another card from it.
 - **Declaring** is the only way to win a set:
-  - Any seated player can declare at any time, even on someone else's turn, naming which teammate holds each of the six cards.
+  - Any seated player can declare at any time, even on someone else's turn, **but only a set they hold at least one card of**. They name which teammate holds each of the six cards.
   - All six correct: the declarer's team wins the set.
   - Any mistake (a card with the wrong teammate, or actually with the opponents): the opponents win it.
   - Either way the cards are revealed, leave play, and the turn doesn't change.

@@ -7,11 +7,17 @@ import { Avatar, Button, Cross, Spinner, TEAM_STYLE, teamName } from '../ui/kit'
 import type { View } from './view'
 
 /** Always-available entry point: any seated player may declare at any time. */
+/** Sets you may declare right now: still in play and you hold at least one of their cards. */
+export function declarableSets(v: View): SetId[] {
+  const held = new Set(v.hand)
+  return v.sets.filter((s) => v.g.completed[s] === null && cardsOfSet(s).some((c) => held.has(c)))
+}
+
+/** Always-available entry point: any seated player may declare, at any time, a set they hold a card of. */
 export function DeclarePanel({ v, onOpen }: { v: View; onOpen: () => void }) {
   if (v.me === null || v.snap.phase !== 'playing') return null
-  const open = v.sets.filter((s) => v.g.completed[s] === null).length
-  const myTeam = teamOfSeat(v.me)
-  const opp = (1 - myTeam) as TeamId
+  const n = declarableSets(v).length
+  const opp = (1 - teamOfSeat(v.me)) as TeamId
   return (
     <section className="surface rounded-xl">
       <div className="flex items-center justify-between gap-3 p-4 sm:px-5">
@@ -19,10 +25,10 @@ export function DeclarePanel({ v, onOpen }: { v: View; onOpen: () => void }) {
           <div className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">Any time</div>
           <div className="text-[13px] font-semibold text-fg">Declare a set</div>
           <div className="mt-0.5 text-xs text-fg-3">
-            Name who holds all six. Wrong, and {teamName(opp)} take it. {open} set{open === 1 ? '' : 's'} left.
+            {n ? `Name who holds all six of a set you have a card of. Wrong, and ${teamName(opp)} take it.` : 'You can declare a set once you hold one of its cards.'}
           </div>
         </div>
-        <Button onClick={onOpen} className="shrink-0 border-champagne/35 text-champagne">
+        <Button onClick={onOpen} disabled={!n} className="shrink-0 border-champagne/35 text-champagne">
           Declare…
         </Button>
       </div>
@@ -36,9 +42,10 @@ export function DeclareSheet({ v, onClose, initialSet }: { v: View; onClose: () 
   const myTeam = teamOfSeat(me)
   const opp = (1 - myTeam) as TeamId
   const teammates = Array.from({ length: v.n }, (_, s) => s).filter((s) => teamOfSeat(s) === myTeam)
-  const openSets = v.sets.filter((s) => v.g.completed[s] === null)
   const held = useMemo(() => new Set(v.hand), [v.hand])
-  const [set, setSet] = useState<SetId | null>(initialSet !== null && openSets.includes(initialSet) ? initialSet : (openSets.find((s) => cardsOfSet(s).some((c) => held.has(c))) ?? openSets[0] ?? null))
+  // Only sets you hold a card of can be declared.
+  const openSets = v.sets.filter((s) => v.g.completed[s] === null && cardsOfSet(s).some((c) => held.has(c)))
+  const [set, setSet] = useState<SetId | null>(initialSet !== null && openSets.includes(initialSet) ? initialSet : (openSets[0] ?? null))
   const [holders, setHolders] = useState<(number | null)[]>([])
   const [confirming, setConfirming] = useState(false)
 
@@ -92,7 +99,7 @@ export function DeclareSheet({ v, onClose, initialSet }: { v: View; onClose: () 
 
         <div className="space-y-5 p-5">
           <div>
-            <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">1 · Set</div>
+            <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-4">1 · Set <span className="normal-case tracking-normal text-fg-4">— only sets you hold a card of</span></div>
             <div className="flex flex-wrap gap-1.5">
               {openSets.map((s) => {
                 const red = isRedSet(s)

@@ -36,7 +36,7 @@ export const RULES_SUMMARY: { label: string; detail: string }[] = [
   { label: 'Who can be asked', detail: 'Only players on the other team.' },
   { label: 'First turn', detail: 'A random player starts.' },
   { label: 'Asking', detail: 'You must hold a card of a set to ask for another card of it.' },
-  { label: 'Declaring', detail: 'Any time, name which teammate holds each card of a set. Right: your team wins it. Wrong: the opponents do.' },
+  { label: 'Declaring', detail: 'Any time, for a set you hold a card of: name which teammate holds each card. Right: your team wins it. Wrong: the opponents do.' },
   { label: 'Winning', detail: 'Declared sets leave play. Most sets wins; 4–4 is a draw.' },
 ]
 

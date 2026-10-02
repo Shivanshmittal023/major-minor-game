@@ -309,7 +309,9 @@ describe('practice bots', () => {
         // My turn: declare a set my team holds entirely (from server truth, to keep the test short), else ask randomly.
         const room = (await store.load(me.code))!
         const g = room.game!
-        const mine = [...Array(g.completed.length).keys()].find((st) => g.completed[st] === null && cardsOfSet(st).every((c) => g.owner[c] >= 0 && teamOfSeat(g.owner[c]) === teamOfSeat(s.you.seat!)))
+        const mine = [...Array(g.completed.length).keys()].find(
+          (st) => g.completed[st] === null && cardsOfSet(st).some((c) => g.owner[c] === s.you.seat) && cardsOfSet(st).every((c) => g.owner[c] >= 0 && teamOfSeat(g.owner[c]) === teamOfSeat(s.you.seat!)),
+        )
         if (mine !== undefined) {
           await me.post({ type: 'declare', set: mine, holders: cardsOfSet(mine).map((c) => g.owner[c]), actionId: `d${i}` })
           continue

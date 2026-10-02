@@ -179,14 +179,14 @@ export function Spinner({ className = '' }: { className?: string }) {
   return <span className={`inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent ${className}`} />
 }
 
-export function BrandMark({ compact = false }: { compact?: boolean }) {
+export function BrandMark({ compact = false, iconOnly = false }: { compact?: boolean; iconOnly?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="relative h-8 w-7 shrink-0">
+      <span className="relative h-8 w-7 shrink-0" aria-label="Major–Minor">
         <span className="card-back absolute inset-0 rotate-[-10deg] rounded-[4px]" style={{ ['--back' as string]: '#26365a' }} />
         <span className="paper absolute inset-0 flex rotate-[6deg] items-center justify-center rounded-[4px] text-sm text-inkcard">♠</span>
       </span>
-      <div className="leading-none">
+      <div className={`leading-none ${iconOnly ? 'hidden' : ''}`}>
         <div className={`text-display text-fg ${compact ? 'text-lg' : 'text-[22px]'}`}>Major–Minor</div>
         {!compact && <div className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-fg-4">Live table</div>}
       </div>

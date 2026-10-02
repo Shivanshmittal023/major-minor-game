@@ -7,9 +7,23 @@ import { Badge, Button, Panel, TEAM_STYLE, TeamDot, teamName } from '../ui/kit'
 import type { View } from './view'
 
 /** Public set status: who completed what, plus which cards of each set you hold. */
-export function SetsBoard({ v }: { v: View }) {
+export function SetsBoard({ v, compact = false }: { v: View; compact?: boolean }) {
   const done = v.g.completed.filter((t) => t !== null).length
   const held = new Set(v.hand)
+  if (compact)
+    return (
+      <section className="surface rounded-xl p-3">
+        <div className="mb-2 flex items-baseline justify-between px-0.5">
+          <span className="text-[12px] font-semibold text-fg">Sets</span>
+          <span className="text-[11px] text-fg-4">{done} of {v.sets.length} won</span>
+        </div>
+        <div className={`grid gap-1.5 ${v.sets.length === 9 ? 'grid-cols-3' : 'grid-cols-4'}`}>
+          {v.sets.map((s) => (
+            <MiniSet key={s} s={s} team={v.g.completed[s]} mine={cardsOfSet(s).filter((c) => held.has(c)).length} />
+          ))}
+        </div>
+      </section>
+    )
   return (
     <Panel eyebrow="Sets" title="Set progress" meta={`${done} of ${v.sets.length} complete`}>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
@@ -18,6 +32,21 @@ export function SetsBoard({ v }: { v: View }) {
         ))}
       </div>
     </Panel>
+  )
+}
+
+function MiniSet({ s, team, mine }: { s: SetId; team: TeamId | null; mine: number }) {
+  const style = team !== null ? { borderColor: `rgb(${TEAM_STYLE[team].rgb} / 0.4)`, background: `rgb(${TEAM_STYLE[team].rgb} / 0.1)` } : undefined
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-black/20 px-2 py-1.5" style={style} title={setLabel(s)}>
+      <div className="flex items-center gap-1 text-[11px] leading-none">
+        <span className={`text-[13px] ${isRedSet(s) ? 'text-rose' : s === EXTRA_SET ? 'text-champagne' : 'text-fg'}`}>{setGlyph(s)}</span>
+        <span className="truncate text-fg-2">{s === EXTRA_SET ? '8s·JK' : setKind(s).slice(0, 3)}</span>
+      </div>
+      <div className={`mt-1 truncate text-[10px] leading-none ${team !== null ? TEAM_STYLE[team].text : mine ? 'text-champagne/80' : 'text-fg-4'}`}>
+        {team !== null ? teamName(team) : mine ? `you ${mine}` : '—'}
+      </div>
+    </div>
   )
 }
 

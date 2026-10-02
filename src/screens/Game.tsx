@@ -4,7 +4,7 @@ import type { Snapshot } from '../../shared/protocol'
 import { teamLabel, type TeamId } from '../../shared/rules'
 import { navigate } from '../App'
 import { AskPanel, AskSheet } from '../game/AskPanel'
-import { DeclarePanel, DeclareSheet } from '../game/Declare'
+import { declarableSets, DeclarePanel, DeclareSheet } from '../game/Declare'
 import { Hand } from '../game/Hand'
 import { EndOverlay, SetsBoard } from '../game/Sidebar'
 import { Banner, Table } from '../game/Table'
@@ -42,7 +42,7 @@ export function GameScreen({ snap }: { snap: Snapshot }) {
   const header = (
     <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-ink-950/85 backdrop-blur-md">
       <div className="mx-auto grid h-[60px] max-w-[1560px] grid-cols-[auto_1fr_auto] items-center gap-3 px-3 sm:h-[68px] sm:grid-cols-[1fr_auto_1fr] sm:gap-6 sm:px-6">
-        <BrandMark compact={compact} />
+        <BrandMark compact={compact} iconOnly={compact} />
         <Score v={v} compact={compact} />
         <div className="flex items-center justify-end gap-2">
           {!compact && snap.phase === 'finished' && <span className="mr-1 text-[13px] text-fg-3">Game over</span>}
@@ -70,11 +70,12 @@ export function GameScreen({ snap }: { snap: Snapshot }) {
     </header>
   )
 
-  if (compact)
+  if (compact) {
+    const canDeclare = v.snap.phase === 'playing' && declarableSets(v).length > 0
     return (
-      <div className="min-h-screen pb-[132px]">
+      <div className="min-h-screen pb-[164px]">
         {header}
-        <main className="space-y-3 px-3 py-3">
+        <main className="space-y-2.5 px-2.5 py-2.5">
           <section className="surface overflow-hidden rounded-2xl">
             <Table v={v} fx={fx} compact picking={v.myTurn} target={askTarget} onTarget={setAskTarget} />
             {fx.banner && (
@@ -83,15 +84,38 @@ export function GameScreen({ snap }: { snap: Snapshot }) {
               </div>
             )}
           </section>
-          <AskPanel v={v} onPick={setAskTarget} />
-          <DeclarePanel v={v} onOpen={() => setDeclaring(true)} />
-          <SetsBoard v={v} />
+          <AskPanel v={v} onPick={setAskTarget} compact />
+          <SetsBoard v={v} compact />
         </main>
         {v.me !== null && (
-          <div className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.07] bg-ink-900/95 px-2 pt-2 backdrop-blur-md">
-            <div className="mb-0.5 flex items-center justify-between px-2 text-[10px]">
-              <span className="font-mono uppercase tracking-[0.14em] text-fg-4">Your hand · {v.hand.length}</span>
-              {v.myTurn ? <span className="font-medium text-champagne">Your move</span> : <span className="text-fg-4">{v.g.seats[v.g.turn].name} to play</span>}
+          <div
+            className={`pb-safe fixed inset-x-0 bottom-0 z-30 border-t bg-ink-900/95 px-2 pt-2 backdrop-blur-md transition-colors duration-500 ${
+              v.myTurn ? 'border-champagne/40 shadow-[0_-12px_40px_-12px_rgba(230,210,162,0.35)]' : 'border-white/[0.07]'
+            }`}
+          >
+            <div className="mb-1 flex items-center justify-between gap-2 px-1.5">
+              <div className="min-w-0 text-[11px]">
+                {v.myTurn ? (
+                  <span className="font-semibold text-champagne">Your move · tap an opponent</span>
+                ) : snap.phase === 'playing' ? (
+                  <span className="text-fg-3">
+                    <span className="text-fg-2">{v.g.seats[v.g.turn].name}</span> to play
+                  </span>
+                ) : (
+                  <span className="text-fg-3">Game over</span>
+                )}
+                <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.12em] text-fg-4">· {v.hand.length} cards</span>
+              </div>
+              {snap.phase === 'playing' && (
+                <button
+                  type="button"
+                  disabled={!canDeclare}
+                  onClick={() => setDeclaring(true)}
+                  className="h-7 shrink-0 rounded-full border border-champagne/40 px-3 text-[11px] font-medium text-champagne transition-colors active:bg-champagne/10 disabled:border-white/10 disabled:text-fg-4"
+                >
+                  Declare…
+                </button>
+              )}
             </div>
             <Hand v={v} compact focusSet={focusSet} onFocusSet={setFocusSet} />
           </div>
@@ -100,6 +124,7 @@ export function GameScreen({ snap }: { snap: Snapshot }) {
         <EndOverlay v={v} />
       </div>
     )
+  }
 
   return (
     <div className="min-h-screen">
@@ -147,7 +172,7 @@ function Score({ v, compact }: { v: ReturnType<typeof makeView>; compact: boolea
   const side = (t: TeamId, reverse: boolean) => (
     <div className={`flex items-center gap-2 sm:gap-3 ${reverse ? 'flex-row-reverse text-left' : 'text-right'}`}>
       <div className="leading-tight">
-        <div className={`text-xs font-medium sm:text-[13px] ${TEAM_STYLE[t].text}`}>{teamName(t)}</div>
+        <div className={`max-w-[76px] truncate text-xs font-medium sm:max-w-none sm:text-[13px] ${TEAM_STYLE[t].text}`} title={teamName(t)}>{teamName(t)}</div>
         {!compact && <div className="text-[10px] text-fg-4">{teamLabel(t)}{t === myTeam ? ' · you' : ''}</div>}
       </div>
       <span className={`text-display leading-none text-fg tabular-nums ${compact ? 'text-[26px]' : 'text-[34px]'}`}>{v.g.score[t]}</span>

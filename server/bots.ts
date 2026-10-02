@@ -63,11 +63,11 @@ export function botStep(r: RoomData, now: number): boolean {
   const seat = g.turn
   const team = teamOfSeat(seat)
 
-  // Declare any set the bot's team fully holds.
+  // Declare a set the bot's team fully holds — only one the bot itself has a card of (same rule as people).
   for (const s of MODES[g.size].sets) {
     if (g.completed[s] !== null) continue
     const owners = cardsOfSet(s).map((c) => g.owner[c])
-    if (owners.every((o) => o >= 0 && teamOfSeat(o) === team)) {
+    if (owners.includes(seat) && owners.every((o) => o >= 0 && teamOfSeat(o) === team)) {
       declare(g, seat, s, owners)
       if (g.winner !== null) r.phase = 'finished'
       return true

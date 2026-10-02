@@ -124,7 +124,7 @@ export function skipTurn(g: Game): void {
 }
 
 /**
- * Declaring a set: any seated player, at any time, names which teammate holds
+ * Declaring a set: any seated player holding at least one of its cards, at any time, names which teammate holds
  * each of the six cards (holders[i] is the seat for cardsOfSet(set)[i]).
  *   · every card exactly where claimed → the declarer's team wins the set
  *   · anything wrong (wrong teammate, or a card with the opponents) → the opponents win it
@@ -135,6 +135,8 @@ export function declare(g: Game, declarer: number, set: number, holders: number[
   if (g.winner !== null) throw new RuleError('The game is over.')
   if (!Number.isInteger(set) || !MODES[g.size].sets.includes(set)) throw new RuleError('Unknown set.')
   if (g.completed[set] !== null) throw new RuleError(`${setLabel(set)} has already been won.`)
+  // House rule: you may only declare a set you currently hold at least one card of.
+  if (!cardsOfSet(set).some((c) => g.owner[c] === declarer)) throw new RuleError(`You can only declare a set you hold a card of — you have no ${setLabel(set)} cards.`)
   const team = teamOfSeat(declarer)
   if (!Array.isArray(holders) || holders.length !== 6) throw new RuleError('Name a holder for all six cards.')
   if (holders.some((h) => !Number.isInteger(h) || h < 0 || h >= g.size || teamOfSeat(h) !== team)) throw new RuleError('Every card must be assigned to a player on your team.')
