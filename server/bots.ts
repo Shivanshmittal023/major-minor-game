@@ -12,7 +12,7 @@ import { newPlayer, type Presence, type RoomData } from './room.js'
  */
 
 const BOT_NAMES = ['Aria', 'Bodhi', 'Cleo', 'Dax', 'Esha', 'Finn', 'Gia', 'Hugo', 'Ivy', 'Jude']
-let botDelayMs = 15_000 // one bot move every 15 seconds, so people can follow and remember the asks
+let botDelayMs = 10_000 // one bot move every 10 seconds, so people can follow and remember the asks
 
 export function setBotDelay(ms: number) {
   botDelayMs = ms

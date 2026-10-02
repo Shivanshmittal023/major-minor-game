@@ -1,4 +1,4 @@
-import { cardShort, isRedSet, setGlyph, setKind, setKindShort, setLabel } from '../../shared/cards'
+import { cardName, isRed, isRedSet, setGlyph, setKind, setKindShort, setLabel } from '../../shared/cards'
 import { teamOfSeat, type TeamId } from '../../shared/rules'
 import { Card, CardBack } from '../ui/Card'
 import { Avatar, Check, Cross, TEAM_STYLE, TeamDot, useNewKeys, teamName } from '../ui/kit'
@@ -49,7 +49,7 @@ export function Table({ v, fx, compact, picking, target, onTarget }: Props) {
 
         <div className={`absolute inset-0 flex flex-col items-center justify-center text-center ${compact ? 'px-4' : 'px-[23%]'}`}>
           <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-fg-4">Turn</div>
-          <div className={`text-display leading-[0.95] text-fg ${compact ? 'text-[34px]' : 'text-[52px]'}`}>{turnNo}</div>
+          <div className={`text-display leading-[0.95] text-fg ${compact ? 'text-[34px]' : fx.banner ? 'text-[34px]' : 'text-[52px]'}`}>{turnNo}</div>
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-fg-2 sm:text-sm">
             <TeamDot team={teamOfSeat(g.turn)} />
             {v.myTurn ? <span className="font-medium text-champagne">Your move</span> : <span className="truncate">{v.nameOf(g.turn)} to play</span>}
@@ -114,24 +114,26 @@ export function Banner({ v, fx, inline = false }: { v: View; fx: Effects; inline
       </div>
     )
   }
+  // The asked card is the thing everyone needs to remember: show it big, and spell it out.
   return (
-    <div key={b.id} className={`animate-banner flex flex-col items-center ${inline ? '' : 'mt-3'}`}>
-      <div className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-[13px] text-fg-2">
-        <span className="font-medium text-fg">{v.nameOf(b.asker)}</span>
-        <span>{b.asker === v.me ? 'ask' : 'asks'}</span>
-        <span className="font-medium text-fg">{b.target === v.me ? 'you' : v.nameOf(b.target)}</span>
-        <span>for</span>
-        <Card card={b.card} size="xs" />
-      </div>
-      <div className="mt-1 h-5 text-xs">
-        {fx.revealed ? (
-          <span key="r" className={`animate-rise inline-flex items-center gap-1 ${b.success ? 'text-sage' : 'text-rose'}`}>
-            {b.success ? <Check className="h-3 w-3" /> : <Cross className="h-3 w-3" />}
-            {b.success ? `${b.target === v.me ? 'You' : v.nameOf(b.target)} handed over ${cardShort(b.card)}` : `${b.target === v.me ? "You don't" : `${v.nameOf(b.target)} doesn't`} have it`}
-          </span>
-        ) : (
-          dots
-        )}
+    <div key={b.id} className={`animate-banner flex items-center gap-3 text-left ${inline ? 'justify-center' : 'mt-2'}`}>
+      <Card card={b.card} size="lg" className="shrink-0 -rotate-[4deg] shadow-[0_14px_28px_-10px_rgba(0,0,0,0.9)]" />
+      <div className="min-w-0">
+        <div className="text-[12px] leading-snug text-fg-3">
+          <span className="font-medium text-fg">{v.nameOf(b.asker)}</span> {b.asker === v.me ? 'ask' : 'asks'}{' '}
+          <span className="font-medium text-fg">{b.target === v.me ? 'you' : v.nameOf(b.target)}</span> for
+        </div>
+        <div className={`text-display text-[22px] leading-tight ${isRed(b.card) ? 'text-rose' : 'text-fg'}`}>{cardName(b.card)}</div>
+        <div className="h-5 text-xs">
+          {fx.revealed ? (
+            <span key="r" className={`animate-rise inline-flex items-center gap-1 ${b.success ? 'text-sage' : 'text-rose'}`}>
+              {b.success ? <Check className="h-3 w-3" /> : <Cross className="h-3 w-3" />}
+              {b.success ? `${b.target === v.me ? 'You' : v.nameOf(b.target)} handed it over` : `${b.target === v.me ? "You don't" : `${v.nameOf(b.target)} doesn't`} have it`}
+            </span>
+          ) : (
+            dots
+          )}
+        </div>
       </div>
     </div>
   )

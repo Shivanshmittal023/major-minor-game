@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { cardLabel, cardsOfSet, EXTRA_SET, setLabel, setOf, setShortLabel, type CardId } from '../engine/cards'
+import { cardLabel, cardName, cardsOfSet, EXTRA_SET, isRed, setLabel, setOf, setShortLabel, type CardId } from '../engine/cards'
 import { isRedSet, setGlyph, setKind, setKindShort } from '../engine/cards'
 import { teamLabel, teamOf, type PlayerId, type TeamId, seatsOf, setsOf } from '../engine/types'
 import { canAsk } from './asks'
@@ -143,13 +143,24 @@ function Centre({ compact }: { compact: boolean }) {
   return (
     <div className="flex flex-col items-center text-center">
       <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-fg-4">Turn {events.length + 1}</div>
-      <div className={`mt-0.5 flex items-center gap-1.5 ${compact ? 'text-[13px]' : 'text-display text-[26px] leading-tight'}`}>
+      <div className={`mt-0.5 flex items-center gap-1.5 ${compact ? 'text-[12px]' : 'text-display text-[24px] leading-tight'}`}>
         {tl.nextTurn === setup.me ? <span className="text-champagne">Your move</span> : <span className="text-fg">{name(tl.nextTurn)} to play</span>}
       </div>
-      {last && (
-        <div key={lastEv!.id} className={`animate-rise mt-1.5 line-clamp-2 max-w-[300px] leading-snug ${compact ? 'text-[11px]' : 'text-xs'} ${last.ok === false ? 'text-rose' : last.ok ? 'text-sage' : 'text-fg-3'}`}>
-          {last.title} · {last.result}
+      {lastEv?.kind === 'ask' ? (
+        <AskBanner key={lastEv.id} requester={lastEv.requester} target={lastEv.target} card={lastEv.card} success={lastEv.success} compact={compact} />
+      ) : lastEv?.kind === 'declare' ? (
+        <div key={lastEv.id} className="animate-rise mt-2 flex flex-col items-center gap-1">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-champagne/30 bg-champagne/10 px-2 py-0.5 text-[13px] text-champagne">
+            <span className={isRedSet(lastEv.set) ? 'text-rose' : ''}>{setGlyph(lastEv.set)}</span> {setKind(lastEv.set)}
+          </span>
+          <span className="text-xs text-sage">{teamName(lastEv.team)} laid it down</span>
         </div>
+      ) : (
+        last && (
+          <div key={lastEv!.id} className={`animate-rise mt-1.5 line-clamp-2 max-w-[300px] leading-snug ${compact ? 'text-[11px]' : 'text-xs'} text-fg-3`}>
+            {last.title}
+          </div>
+        )
       )}
       {ready.map((s) => (
         <button
@@ -161,6 +172,28 @@ function Centre({ compact }: { compact: boolean }) {
           <TeamDot team={kn.sets[s].heldBy!} /> Lay down {compact ? setShortLabel(s) : setLabel(s)}
         </button>
       ))}
+    </div>
+  )
+}
+
+/** The last ask, like the game shows it: the card big and spelt out, then the answer. */
+function AskBanner({ requester, target, card, success, compact }: { requester: PlayerId; target: PlayerId; card: CardId; success: boolean; compact: boolean }) {
+  const { name, state } = useCtx()
+  const me = state.setup.me
+  return (
+    <div className={`animate-rise flex items-center gap-2.5 text-left ${compact ? 'mt-1.5' : 'mt-3'}`}>
+      <CardChip card={card} size="lg" variant="known" inspect={false} className="shrink-0 -rotate-[4deg] shadow-[0_14px_28px_-10px_rgba(0,0,0,0.9)]" />
+      <div className="min-w-0">
+        <div className={`leading-snug text-fg-3 ${compact ? 'text-[10px]' : 'text-[12px]'}`}>
+          <span className="font-medium text-fg">{name(requester)}</span> asked{' '}
+          <span className="font-medium text-fg">{target === me ? 'you' : name(target)}</span> for
+        </div>
+        <div className={`text-display leading-tight ${compact ? 'text-[16px]' : 'text-[22px]'} ${isRed(card) ? 'text-rose' : 'text-fg'}`}>{cardName(card)}</div>
+        <div className={`inline-flex items-center gap-1 ${compact ? 'text-[10px]' : 'text-xs'} ${success ? 'text-sage' : 'text-rose'}`}>
+          {success ? <Check className="h-3 w-3" /> : <Cross className="h-3 w-3" />}
+          {success ? `${target === me ? 'You' : name(target)} handed it over` : `${target === me ? "You don't" : `${name(target)} doesn't`} have it`}
+        </div>
+      </div>
     </div>
   )
 }

@@ -91,6 +91,15 @@ export function cardLabel(card: CardId): string {
   return rankOf(card) + pipOf(card)
 }
 
+const RANK_NAME: Record<string, string> = { J: 'Jack', Q: 'Queen', K: 'King', A: 'Ace' }
+
+/** The card spelt out, so nobody mistakes ♠ for ♣: "6 of Spades", "Queen of Hearts", "Colourful Joker". */
+export function cardName(card: CardId): string {
+  if (card === JOKER_COLOURFUL || card === JOKER_COLOURLESS) return cardLabel(card)
+  const r = rankOf(card)
+  return `${RANK_NAME[r] ?? r} of ${SUIT_NAME[suitOf(card)!]}`
+}
+
 /** Short token for tight spaces (history lines, banners). */
 export function cardShort(card: CardId): string {
   if (card === JOKER_COLOURFUL) return 'JK★'
