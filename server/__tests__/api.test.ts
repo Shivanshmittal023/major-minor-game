@@ -448,3 +448,29 @@ describe('nobody can skip another player', () => {
     }
   })
 })
+
+describe('countdown cancel', () => {
+  it('anyone can cancel; it stays off while seats change; anyone can then start; a rematch counts down again', async () => {
+    const { all, others } = await table(6)
+    await all[0].poll()
+    expect(all[0].last!.autoStart!.at).not.toBeNull()
+    await others[2].post({ type: 'cancelAutoStart' })
+    await all[0].poll()
+    expect(all[0].last!.autoStart).toMatchObject({ at: null, cancelled: true })
+    // Rearranging (seat empties and refills) must not pop the countdown back up.
+    await others[0].post({ type: 'seat', playerId: others[0].id, seat: null })
+    await all[0].poll()
+    await others[0].post({ type: 'autoSeat' })
+    await all[0].poll()
+    await all[3].poll()
+    expect(all[0].last!.autoStart).toMatchObject({ at: null, cancelled: true })
+    // Anyone starts when ready.
+    await others[4].post({ type: 'start' })
+    expect(others[4].last!.phase).toBe('playing')
+    // Finish isn't needed: back to lobby → a fresh countdown is allowed again.
+    await others[1].post({ type: 'backToLobby' })
+    await all[0].poll()
+    expect(all[0].last!.phase).toBe('lobby')
+    expect(all[0].last!.autoStart!.cancelled).toBe(false)
+  })
+})

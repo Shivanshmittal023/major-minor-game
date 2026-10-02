@@ -265,6 +265,9 @@ class RoomClient {
   start() {
     void this.act({ type: 'start' })
   }
+  cancelAutoStart() {
+    void this.act({ type: 'cancelAutoStart' })
+  }
   async ask(target: number, card: CardId) {
     if (this.pendingActionId) return
     const actionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`

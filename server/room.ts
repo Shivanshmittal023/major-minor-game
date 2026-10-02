@@ -31,6 +31,8 @@ export interface RoomData {
   game: Game | null
   /** Auto-start: when the table is full and everyone's online, deal at this time (ms). */
   autoStartAt?: number | null
+  /** Someone cancelled the countdown: no auto-start until a player starts the game themselves. */
+  autoStartCancelled?: boolean
   version: number
   createdAt: number
   lastActivity: number
@@ -198,6 +200,13 @@ export function reduce(r: RoomData, actor: PlayerData, msg: ClientMsg, presence:
       deal(r)
       break
     }
+    case 'cancelAutoStart': {
+      if (r.phase !== 'lobby') throw new ActionError('The game has already started.')
+      if (!r.autoStartAt && r.autoStartCancelled) return false
+      r.autoStartAt = null
+      r.autoStartCancelled = true
+      break
+    }
     case 'ask': {
       const g = r.game
       if (!g || r.phase !== 'playing') throw new ActionError('The game is not running.')
@@ -250,6 +259,7 @@ function deal(r: RoomData) {
   r.game = newGame(r.size)
   r.phase = r.game.winner === null ? 'playing' : 'finished'
   r.autoStartAt = null
+  r.autoStartCancelled = false
 }
 
 export const AUTO_START_MS = 10_000
@@ -258,13 +268,14 @@ const tableReady = (r: RoomData, presence: Presence, now: number) => r.seating.e
 
 /**
  * Auto-start, evaluated lazily on polls (like bots): the moment every seat is
- * filled and everyone is online, a 10-second countdown starts; when it runs out
- * the cards are dealt. If a seat empties or someone drops offline, it disarms.
- * (Anyone can also start immediately with "Start now".) Returns true if changed.
+ * filled and everyone is online, a 10-second countdown starts (shown to everyone
+ * as a pop-up); when it runs out the cards are dealt. If a seat empties or someone
+ * drops offline, it disarms. Anyone can "Start now" — or "Cancel", which keeps it
+ * off so people can rearrange, until someone starts the game. Returns true if changed.
  */
 export function autoStart(r: RoomData, presence: Presence, now: number): boolean {
   if (r.phase !== 'lobby') return false
-  const ready = r.seating.every(Boolean) && tableReady(r, presence, now)
+  const ready = !r.autoStartCancelled && r.seating.every(Boolean) && tableReady(r, presence, now)
   if (!ready) {
     if (r.autoStartAt) {
       r.autoStartAt = null
@@ -322,7 +333,7 @@ export function snapshotFor(r: RoomData, playerId: string, presence: Presence, n
     version: r.version,
     you: { id: me.id, name: me.name, seat: mySeat },
     teamNames: teamNamesOf(r),
-    autoStart: r.phase === 'lobby' ? { at: r.autoStartAt ?? null, now } : null,
+    autoStart: r.phase === 'lobby' ? { at: r.autoStartAt ?? null, now, cancelled: !!r.autoStartCancelled } : null,
     players: r.players.map((p) => ({ id: p.id, name: p.name, connected: isOnline(presence, p.id, now), seat: seatOf(r, p.id), bot: !!p.bot })),
     seating: [...r.seating],
     game: g

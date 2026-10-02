@@ -184,7 +184,7 @@ function AskForm() {
   const requester = reqOverride ?? tl.nextTurn
 
   const canTarget = (p: PlayerId) =>
-    p !== requester && tl.handCounts[p] > 0 && (setup.allowTeammateAsks || teamOf(p) !== teamOf(requester))
+    p !== requester && tl.handCounts[p] > 0 && teamOf(p) !== teamOf(requester) // only opponents can be asked
 
   /** Could `requester` legally ask for `c`, given everything known? */
   const cardAllowed = (c: CardId): boolean => {
@@ -268,7 +268,7 @@ function AskForm() {
 
   const pickRequester = (p: PlayerId) => {
     setReqOverride(p)
-    if (target !== null && (target === p || (!setup.allowTeammateAsks && teamOf(target) === teamOf(p)))) setTarget(null)
+    if (target !== null && (target === p || teamOf(target) === teamOf(p))) setTarget(null)
   }
 
   const ready = target !== null && card !== null

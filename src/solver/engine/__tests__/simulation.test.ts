@@ -65,8 +65,7 @@ function playGame(seed: number, opts: { checkEvery?: number; smart?: boolean } =
     players: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
     me,
     myCards: ALL_CARDS.filter((c) => owner[c] === me),
-    allowTeammateAsks: false,
-    firstTurn: 0,
+      firstTurn: 0,
   }
   let events: GameEvent[] = []
   let turn: PlayerId = 0

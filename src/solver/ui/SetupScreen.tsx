@@ -39,11 +39,10 @@ export function SetupScreen({ onStart }: { onStart: (s: GameSetup) => string | n
   const [me, setMe] = useState<number>(last?.me ?? 0)
   const [cards, setCards] = useState<CardId[]>([])
   const [firstTurn, setFirstTurn] = useState<number>(0)
-  const [allowTeammateAsks, setAllowTeammateAsks] = useState(last?.allowTeammateAsks ?? false)
   const [tried, setTried] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
 
-  const setup: GameSetup = { players: players.map((p) => p.trim()), me, myCards: cards, allowTeammateAsks, firstTurn }
+  const setup: GameSetup = { players: players.map((p) => p.trim()), me, myCards: cards, firstTurn }
   const errors = validateSetup(setup)
 
   const toggle = (c: CardId) =>
@@ -180,13 +179,7 @@ export function SetupScreen({ onStart }: { onStart: (s: GameSetup) => string | n
                   ))}
                 </select>
               </label>
-              <label className="flex cursor-pointer items-start gap-2.5 pt-6">
-                <input type="checkbox" className="mt-0.5 accent-[#e6d2a2]" checked={allowTeammateAsks} onChange={(e) => setAllowTeammateAsks(e.target.checked)} />
-                <span className="text-[13px] text-fg-2">
-                  Allow asking teammates
-                  <span className="block text-xs text-fg-4">Off means opponents only (standard)</span>
-                </span>
-              </label>
+              <p className="pt-6 text-xs text-fg-4">Only opponents can be asked, as in the house rules.</p>
             </div>
           </Step>
 

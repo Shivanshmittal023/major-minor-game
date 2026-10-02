@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PlayerView, Snapshot } from '../../shared/protocol'
 import { DEFAULT_TEAM_NAMES, MODES, RULES_SUMMARY, TEAM_NAME_MAX, teamLabel, teamOfSeat, type TeamId } from '../../shared/rules'
 import { navigate } from '../App'
@@ -108,31 +108,27 @@ export function Lobby({ snap }: { snap: Snapshot }) {
         </div>
       </main>
 
+      {countdown !== null && <CountdownModal msLeft={countdown} total={10_000} />}
+
       {/* start bar */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.06] bg-ink-950/90 backdrop-blur-md">
         <div className="pb-safe mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-4 pt-3 sm:px-6">
           <div className="min-w-0 text-[13px]">
             {countdown !== null ? (
-              <span className="flex items-center gap-3 text-champagne">
-                <span className="text-display flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-champagne/50 text-xl leading-none">{countdown}</span>
-                <span>
-                  <span className="block font-medium">Everyone's here — dealing in {countdown}…</span>
-                  <span className="block text-[11px] text-fg-3">Anyone can start now. Unseat someone to stop the countdown.</span>
-                </span>
-              </span>
+              <span className="text-champagne">Everyone's seated — dealing in {Math.ceil(countdown / 1000)}…</span>
             ) : blocker ? (
               <span className="text-fg-3">{blocker} · the game deals itself once everyone's in</span>
+            ) : snap.autoStart?.cancelled ? (
+              <span className="text-fg-2">Countdown cancelled — arrange the seats, then start when everyone's ready.</span>
             ) : (
               <span className="flex items-center gap-2 text-sage">
                 <Check /> Table is ready — all {n} seated and online
               </span>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="primary" size="xl" onClick={() => client.start()} disabled={!!blocker}>
-              Start now <span aria-hidden>→</span>
-            </Button>
-          </div>
+          <Button variant="primary" size="xl" onClick={() => client.start()} disabled={!!blocker}>
+            Start game <span aria-hidden>→</span>
+          </Button>
         </div>
       </div>
     </div>
@@ -386,16 +382,73 @@ function TeamNameInput({ team, value }: { team: TeamId; value: string }) {
   )
 }
 
-/** Seconds left on the auto-start countdown (server time, corrected for this device's clock), or null. */
+/**
+ * Time left on the auto-start countdown, in ms (null when none). The server's
+ * clock offset is measured once per snapshot — not on every repaint — so the
+ * timer ticks down smoothly instead of freezing between polls.
+ */
 function useCountdown(a: { at: number | null; now: number } | null): number | null {
   const [, tick] = useState(0)
   const at = a?.at ?? null
-  const skew = a ? a.now - Date.now() : 0
+  const serverNow = a?.now ?? 0
+  const offset = useRef(0)
+  const lastServerNow = useRef(0)
+  if (serverNow !== lastServerNow.current) {
+    lastServerNow.current = serverNow
+    offset.current = serverNow - Date.now()
+  }
   useEffect(() => {
     if (at === null) return
-    const id = setInterval(() => tick((x) => x + 1), 250)
+    const id = setInterval(() => tick((x) => x + 1), 100)
     return () => clearInterval(id)
   }, [at])
   if (at === null) return null
-  return Math.max(0, Math.ceil((at - (Date.now() + skew)) / 1000))
+  return Math.max(0, at - (Date.now() + offset.current))
+}
+
+/** Everyone sees this the moment the table fills: deal in 10s, start now, or cancel to rearrange. */
+function CountdownModal({ msLeft, total }: { msLeft: number; total: number }) {
+  const secs = Math.ceil(msLeft / 1000)
+  const frac = Math.max(0, Math.min(1, msLeft / total))
+  const size = 132
+  const r = 58
+  const c = 2 * Math.PI * r
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Game starting">
+      <div className="surface-raised animate-rise w-full max-w-sm rounded-t-2xl px-6 pb-6 pt-7 text-center sm:rounded-2xl">
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-champagne/80">Everyone's seated</div>
+        <h2 className="text-display mt-1 text-[30px] leading-tight text-fg">The cards are coming</h2>
+        <div className="relative mx-auto mt-5" style={{ width: size, height: size }}>
+          <svg width={size} height={size} className="-rotate-90">
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgb(255 255 255 / 0.07)" strokeWidth={5} />
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke="#e6d2a2"
+              strokeWidth={5}
+              strokeLinecap="round"
+              strokeDasharray={c}
+              strokeDashoffset={c * (1 - frac)}
+              style={{ transition: 'stroke-dashoffset 120ms linear' }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span key={secs} className="text-display animate-rise text-[56px] leading-none text-fg">{secs}</span>
+            <span className="mt-1 text-[11px] text-fg-3">seconds</span>
+          </div>
+        </div>
+        <p className="mt-4 text-[13px] text-fg-3">Dealing when the timer ends. Cancel to rearrange seats first — then start whenever you're ready.</p>
+        <div className="pb-safe mt-5 grid grid-cols-2 gap-2">
+          <Button size="xl" onClick={() => client.cancelAutoStart()}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="xl" onClick={() => client.start()}>
+            Start now
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
 }

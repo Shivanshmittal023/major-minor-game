@@ -15,7 +15,6 @@ const setup: GameSetup = {
   players: ['Me', 'Rahul', 'Amit', 'Meera', 'Priya', 'Dev', 'Sara', 'Kiran'],
   me: 0,
   myCards: ['3s', '5s', 'qh', '9d', '2c', 'ac'].map(c),
-  allowTeammateAsks: false,
   firstTurn: 0,
 }
 

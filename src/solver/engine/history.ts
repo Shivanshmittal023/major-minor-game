@@ -92,7 +92,7 @@ export function replay(setup: GameSetup, events: GameEvent[]): Timeline {
       if (!validPlayer(a) || !validPlayer(b)) fail('Unknown player.')
       if (!Number.isInteger(card) || card < 0 || card >= NUM_CARDS) fail('Unknown card.')
       if (a === b) fail('A player cannot ask themselves.')
-      if (!setup.allowTeammateAsks && teamOf(a) === teamOf(b)) fail(`${name(a)} and ${name(b)} are teammates — players can only ask opponents.`)
+      if (teamOf(a) === teamOf(b)) fail(`${name(a)} and ${name(b)} are teammates — players can only ask opponents.`)
       const set = setOf(card)
       if (laidDownBy[set] !== null) fail(`${setLabel(set)} has already been completed and laid down.`)
       if (handCounts[a] === 0) fail(`${name(a)} has no cards left and cannot ask.`)

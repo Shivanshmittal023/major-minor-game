@@ -23,8 +23,6 @@ export interface GameSetup {
   players: string[] // 8 names, index = seat
   me: PlayerId
   myCards: CardId[] // my 6 starting cards
-  /** Most tables only allow asking opponents. Leave false unless your table plays otherwise. */
-  allowTeammateAsks: boolean
   firstTurn: PlayerId
 }
 

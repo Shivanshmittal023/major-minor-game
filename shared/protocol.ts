@@ -20,6 +20,7 @@ export type ClientMsg =
   | { type: 'fillBots' }
   | { type: 'teamName'; team: TeamId; name: string }
   | { type: 'start' }
+  | { type: 'cancelAutoStart' }
   | { type: 'ask'; target: number; card: CardId; actionId: string }
   | { type: 'declare'; set: SetId; holders: number[]; actionId: string }
   | { type: 'backToLobby' }
@@ -79,7 +80,7 @@ export interface Snapshot {
   /** [Team 1, Team 2] display names. */
   teamNames: [string, string]
   /** Lobby only: when the full table will deal by itself (`at`, server ms; `now` lets clients correct clock skew). */
-  autoStart: { at: number | null; now: number } | null
+  autoStart: { at: number | null; now: number; cancelled: boolean } | null
   phase: Phase
   version: number
   you: { id: string; name: string; seat: number | null }
